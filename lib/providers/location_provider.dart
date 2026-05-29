@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import '../models/location_model.dart';
 import '../services/mock_data.dart';
 
@@ -20,61 +21,157 @@ class DiscoveredDevice {
 }
 
 /// Central state manager for all monitoring locations.
-/// Simulates Bluetooth scanning with periodic random updates.
+/// Uses REAL hardware Dual-Band (BLE + Classic) Bluetooth scanning.
 class LocationProvider extends ChangeNotifier {
   List<MonitoringLocation> _locations = [];
-  final Map<String, Timer> _scanTimers = {};
   final Map<String, List<DiscoveredDevice>> _discoveredDevices = {};
-  final Random _random = Random();
+  
+  // Track which locations are currently set to "Scanning"
+  final Set<String> _scanningLocationIds = {};
+  
+  // Unified cache for all discovered devices (keyed by MAC)
+  final Map<String, DiscoveredDevice> _globalDeviceCache = {};
+  
+  // Real Bluetooth subscriptions
+  StreamSubscription<List<ScanResult>>? _bleScanSubscription;
+  StreamSubscription<BluetoothDiscoveryResult>? _classicScanSubscription;
+  
   bool _isLoading = true;
 
   List<MonitoringLocation> get locations => List.unmodifiable(_locations);
   bool get isLoading => _isLoading;
 
-  /// Total devices found across all locations.
   int get totalDevices =>
       _locations.fold(0, (sum, loc) => sum + loc.currentDeviceCount);
 
-  /// Average occupancy across all locations.
   double get averageOccupancy {
     if (_locations.isEmpty) return 0;
     return _locations.fold(0.0, (sum, loc) => sum + loc.occupancyPercentage) /
         _locations.length;
   }
 
-  /// Get discovered devices for a specific location.
   List<DiscoveredDevice> getDiscoveredDevices(String locationId) {
     return _discoveredDevices[locationId] ?? [];
   }
 
-  /// Initialize with mock data and a simulated loading delay.
   Future<void> loadLocations() async {
     _isLoading = true;
     notifyListeners();
 
-    // Simulate network/database loading delay
-    await Future.delayed(const Duration(milliseconds: 1500));
-
+    await Future.delayed(const Duration(milliseconds: 1000));
     _locations = MockData.getLocations();
 
-    // Start scanning for locations that are already marked as scanning
-    for (final location in _locations) {
-      if (location.isScanning) {
-        _startScanTimer(location.id);
-      }
-    }
+    // Init the BLE stream listener which runs globally
+    _initBleListener();
 
     _isLoading = false;
     notifyListeners();
   }
 
-  /// Add a new monitoring location.
+  void _initBleListener() {
+    _bleScanSubscription = FlutterBluePlus.scanResults.listen((results) {
+      if (results.isEmpty) return;
+      bool cacheUpdated = false;
+      
+      for (var r in results) {
+        final mac = r.device.remoteId.str;
+        
+        // Extract raw BLE name
+        final bleName = r.device.platformName.isNotEmpty 
+            ? r.device.platformName 
+            : r.advertisementData.advName.isNotEmpty 
+                ? r.advertisementData.advName 
+                : 'Unknown Device';
+
+        final existing = _globalDeviceCache[mac];
+        
+        // SMART NAME RESOLUTION:
+        // If BLE sees an anonymous "Unknown Device" but our cache 
+        // already has a real name from Classic BT, we keep the real name!
+        final resolvedName = (existing != null && existing.name != 'Unknown Device' && bleName == 'Unknown Device')
+            ? existing.name
+            : bleName;
+
+        _globalDeviceCache[mac] = DiscoveredDevice(
+          macAddress: mac,
+          name: resolvedName,
+          rssi: r.rssi,
+          discoveredAt: DateTime.now(),
+        );
+        cacheUpdated = true;
+      }
+
+      if (cacheUpdated) {
+        _broadcastCacheToLocations();
+      }
+    });
+  }
+
+  void _startClassicDiscoveryLoop() {
+    _classicScanSubscription?.cancel();
+    
+    try {
+      _classicScanSubscription = FlutterBluetoothSerial.instance.startDiscovery().listen((result) {
+        final mac = result.device.address;
+        // Classic BT is highly reliable for getting actual device names (e.g. "My PC")
+        final classicName = result.device.name ?? 'Unknown Device';
+        final rssi = result.rssi;
+
+        final existing = _globalDeviceCache[mac];
+        
+        // SMART NAME RESOLUTION:
+        // Classic names are prioritized over existing Unknowns
+        final resolvedName = (classicName != 'Unknown Device') 
+            ? classicName 
+            : (existing?.name ?? 'Unknown Device');
+
+        _globalDeviceCache[mac] = DiscoveredDevice(
+          macAddress: mac,
+          name: resolvedName,
+          rssi: rssi,
+          discoveredAt: DateTime.now(),
+        );
+        
+        _broadcastCacheToLocations();
+      }, onDone: () {
+        // Classic discovery natively times out after ~12 seconds.
+        // We automatically loop it if any listening base is still active.
+        if (_scanningLocationIds.isNotEmpty) {
+          _startClassicDiscoveryLoop();
+        }
+      });
+    } catch (e) {
+      debugPrint("Classic BT Error: $e");
+    }
+  }
+
+  void _broadcastCacheToLocations() {
+    if (_scanningLocationIds.isEmpty) return;
+
+    // Filter to active devices seen in the last 2 minutes and sort by signal strength
+    final activeDevices = _globalDeviceCache.values.where((d) => 
+        DateTime.now().difference(d.discoveredAt).inMinutes < 2
+    ).toList();
+    
+    activeDevices.sort((a, b) => b.rssi.compareTo(a.rssi));
+    
+    // Broadcast findings to all active dashboard locations
+    for (final locId in _scanningLocationIds) {
+      final index = _locations.indexWhere((loc) => loc.id == locId);
+      if (index == -1) continue;
+
+      _discoveredDevices[locId] = List.from(activeDevices.take(150)); // cap at 150
+      _locations[index].currentDeviceCount = activeDevices.length;
+    }
+    
+    notifyListeners();
+  }
+
   void addLocation(MonitoringLocation location) {
     _locations.add(location);
     notifyListeners();
   }
 
-  /// Get a single location by ID.
   MonitoringLocation? getLocation(String id) {
     try {
       return _locations.firstWhere((loc) => loc.id == id);
@@ -83,91 +180,56 @@ class LocationProvider extends ChangeNotifier {
     }
   }
 
-  /// Start simulated Bluetooth scanning for a location.
-  void startScanning(String locationId) {
+  Future<void> startScanning(String locationId) async {
     final index = _locations.indexWhere((loc) => loc.id == locationId);
     if (index == -1) return;
 
+    final wasEmpty = _scanningLocationIds.isEmpty;
+
     _locations[index].isScanning = true;
-    _startScanTimer(locationId);
+    _scanningLocationIds.add(locationId);
     notifyListeners();
+
+    // If this is the first location to request scanning, spin up the Dual-Band antennas
+    if (wasEmpty) {
+      // 1. Fire up BLE physical antenna
+      if (FlutterBluePlus.isScanningNow == false) {
+        try {
+          await FlutterBluePlus.startScan(continuousUpdates: true);
+        } catch (e) {
+          debugPrint("BLE Scan Error: $e");
+        }
+      }
+      
+      // 2. Fire up Classic BT discovery loop
+      _startClassicDiscoveryLoop();
+    }
   }
 
-  /// Stop scanning for a location.
-  void stopScanning(String locationId) {
+  Future<void> stopScanning(String locationId) async {
     final index = _locations.indexWhere((loc) => loc.id == locationId);
     if (index == -1) return;
 
     _locations[index].isScanning = false;
-    _scanTimers[locationId]?.cancel();
-    _scanTimers.remove(locationId);
+    _scanningLocationIds.remove(locationId);
     notifyListeners();
-  }
 
-  /// Internal: start a periodic timer that simulates device discovery.
-  void _startScanTimer(String locationId) {
-    // Cancel any existing timer for this location
-    _scanTimers[locationId]?.cancel();
-
-    _scanTimers[locationId] = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) => _simulateScan(locationId),
-    );
-  }
-
-  /// Simulate discovering/losing Bluetooth devices.
-  void _simulateScan(String locationId) {
-    final index = _locations.indexWhere((loc) => loc.id == locationId);
-    if (index == -1) return;
-
-    final location = _locations[index];
-    if (!location.isScanning) return;
-
-    // Randomly adjust device count: ±1 to ±3 devices
-    final delta = _random.nextInt(5) - 2; // -2 to +2
-    final newCount = (location.currentDeviceCount + delta)
-        .clamp(0, location.maxCapacity + 5); // Allow slight overflow for realism
-
-    _locations[index].currentDeviceCount = newCount;
-
-    // Occasionally add a discovered device to the log
-    if (delta > 0 && _random.nextBool()) {
-      _addDiscoveredDevice(locationId);
-    }
-
-    notifyListeners();
-  }
-
-  /// Add a fake discovered device to the log.
-  void _addDiscoveredDevice(String locationId) {
-    final devices = _discoveredDevices.putIfAbsent(locationId, () => []);
-
-    final macIndex = _random.nextInt(MockData.mockMacAddresses.length);
-    final nameIndex = _random.nextInt(MockData.mockDeviceNames.length);
-
-    devices.insert(
-      0,
-      DiscoveredDevice(
-        macAddress: MockData.mockMacAddresses[macIndex],
-        name: MockData.mockDeviceNames[nameIndex],
-        rssi: -(_random.nextInt(60) + 30), // -30 to -90 dBm
-        discoveredAt: DateTime.now(),
-      ),
-    );
-
-    // Keep only the latest 50 entries
-    if (devices.length > 50) {
-      devices.removeRange(50, devices.length);
+    // Power down the antennas to save battery if no bases are listening
+    if (_scanningLocationIds.isEmpty) {
+      try {
+        await FlutterBluePlus.stopScan();
+        _classicScanSubscription?.cancel();
+      } catch (e) {
+        debugPrint("Error stopping scan: $e");
+      }
     }
   }
 
   @override
   void dispose() {
-    // Cancel all running scan timers
-    for (final timer in _scanTimers.values) {
-      timer.cancel();
-    }
-    _scanTimers.clear();
+    _bleScanSubscription?.cancel();
+    _classicScanSubscription?.cancel();
+    FlutterBluePlus.stopScan();
     super.dispose();
   }
 }
