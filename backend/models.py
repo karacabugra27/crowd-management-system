@@ -95,6 +95,21 @@ class NotificationPreference(Base):
     user = relationship("User", back_populates="preferences")
 
 
+class AdminUser(Base):
+    """Web arayüzü için e-posta/şifre tabanlı kullanıcı."""
+
+    __tablename__ = "admin_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="user")  # "user" | "admin"
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class NotificationLog(Base):
     """Gönderilen bildirim kaydı — cooldown ve audit için."""
 

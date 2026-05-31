@@ -23,6 +23,8 @@ from config import get_settings
 from database import SessionLocal, init_db
 from models import Area
 from routers import areas as areas_router
+from routers import auth as auth_router
+from routers import bluetooth as bluetooth_router
 from routers import occupancy as occupancy_router
 from routers import users as users_router
 from services.influx_service import (
@@ -164,9 +166,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router.router)
 app.include_router(areas_router.router)
 app.include_router(occupancy_router.router)
 app.include_router(users_router.router)
+app.include_router(bluetooth_router.router)
 
 
 @app.get("/", tags=["root"])

@@ -4,6 +4,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import '../models/location_model.dart';
 import '../services/mock_data.dart';
+import '../services/api_service.dart';
 
 /// Discovered device entry for the scanning log.
 class DiscoveredDevice {
@@ -162,6 +163,12 @@ class LocationProvider extends ChangeNotifier {
 
       _discoveredDevices[locId] = List.from(activeDevices.take(150)); // cap at 150
       _locations[index].currentDeviceCount = activeDevices.length;
+
+      // Backend'e gönder (asenkron, UI'ı bloklamaz)
+      ApiService.instance.sendBluetoothReport(
+        areaId: locId,
+        deviceCount: activeDevices.length,
+      );
     }
     
     notifyListeners();

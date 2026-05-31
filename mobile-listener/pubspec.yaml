@@ -40,6 +40,8 @@ dependencies:
   geolocator: ^14.0.2
   flutter_blue_plus: ^2.3.4
   flutter_bluetooth_serial: ^0.4.0
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:

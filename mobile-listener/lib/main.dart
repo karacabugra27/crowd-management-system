@@ -4,9 +4,13 @@ import 'package:provider/provider.dart';
 import 'core/app_theme.dart';
 import 'providers/location_provider.dart';
 import 'screens/dashboard_screen.dart';
+import 'services/api_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // ApiService'i başlat (kayıtlı URL ve listenerId'yi yükle)
+  await ApiService.instance.init();
 
   // Lock orientation to portrait for this admin panel
   SystemChrome.setPreferredOrientations([

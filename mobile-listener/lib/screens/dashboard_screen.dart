@@ -10,6 +10,7 @@ import '../widgets/density_indicator.dart';
 
 import 'add_location_screen.dart';
 import 'location_detail_screen.dart';
+import 'logs_screen.dart';
 
 /// Home screen with an interactive map showing all monitoring locations.
 /// Displays color-coded markers and summary statistics.
@@ -234,29 +235,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-          // Notification bell (decorative)
+          // API Logs butonu
           IconButton(
-            onPressed: () {},
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_none_rounded,
-                    color: AppColors.textSecondary),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: AppColors.densityHigh,
-                      shape: BoxShape.circle,
-                      boxShadow: AppColors.neonGlow(AppColors.densityHigh,
-                          intensity: 0.6, blurRadius: 6),
-                    ),
-                  ),
-                ),
-              ],
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LogsScreen()),
             ),
+            icon: const Icon(Icons.terminal_rounded, color: AppColors.textSecondary),
+            tooltip: 'API Logları',
           ),
         ],
       ),
