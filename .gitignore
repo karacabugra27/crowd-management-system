@@ -1,0 +1,26 @@
+# Secrets
+*firebase-adminsdk*.json
+firebase-credentials.json
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Logs
+*.log
+logs/
+
+# Docker volumes (local data)
+influxdb_data/
+postgres_data/
+redis_data/

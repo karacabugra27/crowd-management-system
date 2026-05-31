@@ -1,0 +1,228 @@
+backendi oluşturdum. agent ile yaparken backend api endpointlerine göre yaptırırsanız hallolur gibi. readmede dokümantasyon falan var yine de şuna göre inceleyebilirsiniz
+
+Crowd Management Backend — Geliştirici Kurulumu                                                                                                                   
+                                                 
+  0. Ön Koşullar                                                                                                                                                    
+                                              
+  Bilgisayarında yüklü olması gerekenler:                                                                                                                           
+  - Git                                                                                                                                                             
+  - Docker Desktop (Mac/Windows) — açık ve çalışır durumda olmalı                                                                                                   
+  - Python 3.12+ (sadece test çalıştırmak ya da migration üretmek için; container'da kalkacaksan gerekmez)                                                          
+                                                                                                                                                                    
+  ▎ 💡 Docker Desktop'ı kurmadıysan: https://www.docker.com/products/docker-desktop/                                                                                
+                                                                                                                                                                  
+  ---                                                                                                                                                               
+  1. Repo'yu Klonla                                                                                                                                                 
+                                                                                                                                                                    
+  git clone <REPO_URL>                                                                                                                                              
+  cd crowd-management-system/backend                                                                                                                                
+                                                                                                                                                                  
+  ---                                     
+  2. .env Dosyasını Oluştur
+                                                                                                                                                                    
+  .env.example'ı kopyala ve düzenle:
+                                                                                                                                                                    
+  cp .env.example .env                                                                                                                                            
+
+  .env dosyasını şu içerikle güncelle:                                                                                                                              
+                                          
+  # Backend → Postgres bağlantısı (kullanıcı/şifre/db, POSTGRES_* ile birebir aynı olmalı)                                                                          
+  DATABASE_URL=postgresql+asyncpg://postgres:1234@postgres:5432/campus                                                                                              
+                                              
+  # Postgres container ilk açılışta bu değerlerle kullanıcı + db yaratır                                                                                            
+  POSTGRES_USER=postgres                                                                                                                                            
+  POSTGRES_PASSWORD=1234                                                                                                                                            
+  POSTGRES_DB=campus                                                                                                                                                
+                                                                                                                                                                    
+  # JWT — production'da mutlaka değiştir (openssl rand -hex 32)                                                                                                     
+  SECRET_KEY=dev-secret-change-me                                                                                                                                 
+  ALGORITHM=HS256                                                                                                                                                   
+  ACCESS_TOKEN_EXPIRE_MINUTES=30                                                                                                                                    
+  REFRESH_TOKEN_EXPIRE_DAYS=7             
+                                                                                                                                                                    
+  APP_NAME=Crowd Management API                                                                                                                                     
+  APP_ENV=development                     
+  CORS_ORIGINS=*                                                                                                                                                    
+  RATE_LIMIT_PER_MINUTE=60                                                                                                                                          
+   
+  ▎ ⚠️  Önemli:                                                                                                                                                      
+  ▎ - DATABASE_URL içindeki host postgres kalmalı (compose servis adı).                                                                                           
+  ▎ - DATABASE_URL'deki kullanıcı/şifre/db ile POSTGRES_USER/PASSWORD/DB birebir aynı olmak zorunda.
+  ▎ - Şifrede @ : / ? gibi özel karakter varsa URL'de encode et (@ → %40).                                                                                          
+                                              
+  ---                                                                                                                                                               
+  3. Container'ları Başlat                                                                                                                                          
+                                                                                                                                                                    
+  docker compose up -d --build                                                                                                                                      
+                                                                                                                                                                    
+  İlk açılış 1–3 dakika sürer (image build + pip install). Sonraki açılışlarda saniyeler.                                                                         
+                                          
+  Açılışta otomatik olarak:
+  - Postgres container campus veritabanını yaratır                                                                                                                  
+  - Backend container alembic upgrade head çalıştırır → 4 tablo (areas, users, scanners, occupancy_logs)
+  - Uvicorn 0.0.0.0:8000 üzerinde başlar                                                                                                                            
+                                                                                                                                                                  
+  Durumu Doğrula                                                                                                                                                    
+   
+  docker compose ps                                                                                                                                                 
+                                                                                                                                                                  
+  İkisi de healthy / Up görünmeli:                                                                                                                                  
+  - campus_postgres → 0.0.0.0:5433->5432/tcp                                                                                                                        
+  - campus_backend → 0.0.0.0:8000->8000/tcp   
+                                                                                                                                                                    
+  ▎ ℹ️  Postgres host portu 5433 (5432 değil) — makinende lokal Postgres çakışmasın diye.                                                                          
+                                                                                                                                                                    
+  Sağlık Kontrolü                         
+                                                                                                                                                                    
+  curl http://localhost:8000/health                                                                                                                                 
+  # → {"status":"ok","app":"Crowd Management API"}                                                                                                                  
+                                                                                                                                                                    
+  Swagger UI: http://localhost:8000/docs                                                                                                                          
+  ReDoc: http://localhost:8000/redoc                                                                                                                                
+   
+  ---                                                                                                                                                               
+  4. İlk Admin Kullanıcıyı Yarat                                                                                                                                  
+                                                                                                                                                                    
+  API üzerinden user kaydı yap, sonra DB'den role'ünü admin'e çek.                                                                                                
+                                              
+  # 1) Kayıt ol                                                                                                                                                     
+  curl -X POST http://localhost:8000/api/auth/register \
+    -H "Content-Type: application/json" \                                                                                                                           
+    -d '{"email":"admin@example.com","password":"AdminPass123!"}'                                                                                                 
+                                                                                                                                                                    
+  # 2) Postgres'te admin yap                                                                                                                                      
+  docker compose exec postgres psql -U postgres -d campus \                                                                                                         
+    -c "UPDATE users SET role='admin' WHERE email='admin@example.com';"                                                                                           
+                                                                                                                                                                    
+  # 3) Login (token taze role'ü içersin diye)                                                                                                                     
+  curl -X POST http://localhost:8000/api/auth/login \                                                                                                               
+    -H "Content-Type: application/json" \                                                                                                                           
+    -d '{"email":"admin@example.com","password":"AdminPass123!"}'                                                                                                   
+                                                                                                                                                                    
+  ▎ ⚠️  Email tuzağı: EmailStr validator @example.local, @test.local gibi reserved TLD'leri reddediyor. @example.com kullan.                                         
+                                                                                                                                                                    
+  ---
+  5. Günlük Geliştirme Komutları                                                                                                                                    
+                                                                                                                                                                  
+  # Tüm log'ları takip et                                                                                                                                           
+  docker compose logs -f                                                                                                                                          
+                                                                                                                                                                    
+  # Sadece backend log                        
+  docker compose logs -f backend                                                                                                                                    
+                                                                                                                                                                  
+  # Container'a shell                                                                                                                                               
+  docker compose exec backend bash
+                                                                                                                                                                    
+  # Postgres shell                                                                                                                                                
+  docker compose exec postgres psql -U postgres -d campus
+                                              
+  # Durdur (verileri korur)               
+  docker compose stop
+                                                                                                                                                                    
+  # Tekrar başlat                             
+  docker compose start                                                                                                                                              
+                                                                                                                                                                  
+  # Kodu değiştirdiysen — backend'i yeniden build et                                                                                                                
+  docker compose up -d --build backend    
+                                                                                                                                                                    
+  # Sıfırdan başla (DB dahil HER ŞEYİ siler)                                                                                                                        
+  docker compose down -v                  
+                                                                                                                                                                    
+  ---                                                                                                                                                               
+  6. Veri Tabanı Migration'ları                                                                                                                                     
+                                                                                                                                                                    
+  Yeni bir SQLAlchemy modeli eklediysen ya da mevcut bir tabloyu değiştirdiysen:                                                                                  
+                                              
+  # Container içinde yeni migration üret                                                                                                                            
+  docker compose exec backend alembic revision --autogenerate -m "describe change"
+                                                                                                                                                                    
+  # Migration'ı uygula                                                                                                                                            
+  docker compose exec backend alembic upgrade head                                                                                                                  
+                                                                                                                                                                    
+  # Geri al                                   
+  docker compose exec backend alembic downgrade -1                                                                                                                  
+                                                                                                                                                                  
+  Üretilen migration dosyası backend/alembic/versions/'a düşer — commit'lemeyi unutma.                                                                              
+                                          
+  ---                                                                                                                                                               
+  7. Testleri Çalıştır                                                                                                                                              
+                      
+  Testler in-memory SQLite kullanır, Postgres'e bağlanmaz.                                                                                                          
+                                                                                                                                                                  
+  Seçenek A — Container içinde                
+                                          
+  docker compose exec backend pytest -v                                                                                                                             
+                                                                                                                                                                    
+  Seçenek B — Lokal venv (daha hızlı)                                                                                                                               
+                                                                                                                                                                    
+  python3.12 -m venv .venv                                                                                                                                        
+  source .venv/bin/activate               
+  pip install -r requirements.txt
+  pytest -v                                                                                                                                                         
+   
+  Beklenen sonuç: 22 passed.                                                                                                                                        
+                                                                                                                                                                  
+  ---
+  8. Yeni Bir Endpoint Eklerken Çalışma Akışı                                                                                                                       
+                                              
+  1. Model gerekiyorsa → app/models/<resource>.py + __init__.py'a ekle                                                                                              
+  2. Migration üret → alembic revision --autogenerate                                                                                                             
+  3. Pydantic şeması → app/schemas/<resource>.py                                                                                                                    
+  4. İş mantığı → app/services/<resource>_service.py (router'a iş mantığı koyma)
+  5. Router → app/routers/<resource>.py                                                                                                                             
+  6. app/main.py içinde app.include_router(...) ekle                                                                                                                
+  7. Test → tests/test_<resource>.py                                                                                                                                
+  8. pytest -v ve docker compose logs backend ile doğrula                                                                                                           
+                                                                                                                                                                  
+  ---                                                                                                                                                               
+  9. Sık Karşılaşılan Sorunlar                                                                                                                                    
+                                                                                                                                                                    
+  ┌─────────────────────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐ 
+  │               Belirti               │                                                         Çözüm                                                         │   
+  ├─────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤   
+  │ bind: address already in use (5432) │ Lokal Postgres çakışıyor; biz zaten 5433'e taşıdık. Yine de çakışırsa: docker compose down, lsof -i :5433 ile bul.    │
+  ├─────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤   
+  │ Backend password authentication     │ .env'deki DATABASE_URL ile POSTGRES_* birebir aynı mı? Volume'u sıfırla: docker compose down -v && docker compose up  │ 
+  │ failed                              │ -d --build                                                                                                            │
+  ├─────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ cannot import name X                │ Kodu değiştirdin ama image rebuild etmedin: docker compose up -d --build backend                                      │   
+  ├─────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤   
+  │ value is not a valid email address  │ EmailStr .local reddediyor — @example.com kullan                                                                      │   
+  ├─────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤   
+  │ WS bağlantısı hemen kapanıyor       │ Backend log'una bak (docker compose logs backend); kod hatasıdır                                                      │   
+  ├─────────────────────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 401 her endpoint'te                 │ Token expire olmuş olabilir (30 dk) — /api/auth/refresh çağır ya da yeniden login                                     │   
+  └─────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
+                                                                                                                                                                    
+  ---                                                                                                                                                             
+  10. Proje Klasör Yapısı (Hızlı Referans)                                                                                                                          
+                                                                                                                                                                  
+  backend/                                                                                                                                                          
+  ├── app/                                                                                                                                                        
+  │   ├── main.py             ← FastAPI app, router'ları bağlar
+  │   ├── config.py           ← .env okuma (Pydantic Settings)
+  │   ├── database.py         ← Async engine, session                                                                                                               
+  │   ├── dependencies.py     ← current_user, current_admin, scanner key
+  │   ├── models/             ← SQLAlchemy ORM                                                                                                                      
+  │   ├── schemas/            ← Pydantic (request/response)                                                                                                         
+  │   ├── routers/            ← HTTP & WebSocket endpoint'leri
+  │   ├── services/           ← İş mantığı (router'lar buradan çağırır)                                                                                             
+  │   └── core/               ← security, rate_limiter, exceptions                                                                                                  
+  ├── alembic/                ← Migration script'leri                                                                                                               
+  ├── tests/                  ← pytest                                                                                                                              
+  ├── Dockerfile                                                                                                                                                    
+  ├── docker-compose.yml                                                                                                                                            
+  ├── requirements.txt                                                                                                                                              
+  ├── .env.example                                                                                                                                                
+  └── README.md                                                                                                                                                     
+                                                                                                                                                                    
+  Mimari kural: Router yalnızca HTTP katmanı. İş mantığı services/'e gider. DB modeli models/'de. Validation schemas/'da.
+                                                                                                                                                                    
+  ---                                                                                                                                                             
+  Yardım                                                                                                                                                            
+                                              
+  - Tüm endpoint dokümantasyonu: http://localhost:8000/docs                                                                                                         
+  - Detaylı API açıklamaları: README.md                                                                                                                           
+  - Bir konuda takılırsan: önce docker compose logs backend çıktısına bak
+
+  gerekli düzenlemeleri kendinize göre yapıp docker ile direkt backendi çalıştırabilirsinz

@@ -1,0 +1,194 @@
+version: "3.9"
+
+# ============================================================
+# Akıllı Kampüs Kalabalık Yönetim Sistemi
+# ------------------------------------------------------------
+# Tüm servisler aynı `campus_net` bridge ağında çalışır.
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # InfluxDB 2.x — zaman serisi doluluk verileri
+  # ----------------------------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: campus_influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - campus_net
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # PostgreSQL — alan tanımları, kullanıcılar, tercihler
+  # ----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: campus_postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - campus_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # Redis — Celery broker & FCM cooldown cache
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: campus_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - campus_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # Collector — Wi-Fi AP polling / Mock simulator
+  # ----------------------------------------------------------
+  collector:
+    build:
+      context: ./collector
+      dockerfile: Dockerfile
+    container_name: campus_collector
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      - campus_net
+
+  # ----------------------------------------------------------
+  # Backend — FastAPI REST + WebSocket
+  # ----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Firebase credentials mount (geliştirme ortamı için)
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - campus_net
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  # ----------------------------------------------------------
+  # Celery worker — bildirim ve periyodik kontroller
+  # ----------------------------------------------------------
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_celery_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    networks:
+      - campus_net
+    command: celery -A services.celery_tasks worker --loglevel=info
+
+  # ----------------------------------------------------------
+  # Celery beat — periyodik zamanlayıcı
+  # ----------------------------------------------------------
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_celery_beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - celery-worker
+    networks:
+      - campus_net
+    command: celery -A services.celery_tasks beat --loglevel=info
+
+  # ----------------------------------------------------------
+  # Frontend — React dev server (Vite)
+  # ----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: campus_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+    depends_on:
+      - backend
+    networks:
+      - campus_net
+
+volumes:
+  influxdb_data:
+  influxdb_config:
+  postgres_data:
+  redis_data:
+
+networks:
+  campus_net:
+    driver: bridge
