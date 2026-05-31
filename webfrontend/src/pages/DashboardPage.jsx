@@ -47,23 +47,29 @@ export default function DashboardPage() {
 
   // Real-time updates via WebSocket
   const handleWsMessage = useCallback((msg) => {
-    setLiveData((prev) => {
-      const idx = prev.findIndex((a) => a.area_id === msg.area_id);
-      const updated = {
-        area_id: msg.area_id,
-        area_name: msg.area_name,
-        device_count: msg.device_count,
-        occupancy_pct: msg.occupancy_pct,
-        status: msg.status,
-        last_updated: msg.recorded_at,
-      };
-      if (idx >= 0) {
+    if (msg.type === "occupancy.live" && Array.isArray(msg.data)) {
+      setLiveData(msg.data);
+    } else if (msg.type === "occupancy_update" && msg.data) {
+      // Geriye dönük uyumluluk veya farklı formatlar için
+      setLiveData((prev) => {
         const copy = [...prev];
-        copy[idx] = updated;
+        const items = Array.isArray(msg.data) ? msg.data : [msg.data];
+        items.forEach((item) => {
+          const idx = copy.findIndex((a) => a.area_id === item.area_id);
+          const updated = {
+            area_id: item.area_id,
+            area_name: item.area_name || item.name,
+            device_count: item.device_count,
+            occupancy_pct: item.occupancy_pct,
+            status: item.status,
+            last_updated: item.last_updated || item.timestamp || new Date().toISOString(),
+          };
+          if (idx >= 0) copy[idx] = updated;
+          else copy.push(updated);
+        });
         return copy;
-      }
-      return [...prev, updated];
-    });
+      });
+    }
   }, []);
 
   const { connected } = useWebSocket(null, handleWsMessage);

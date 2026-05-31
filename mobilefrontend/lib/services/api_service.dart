@@ -68,7 +68,7 @@ class AreasService {
     throw ApiException('Alanlar alınamadı');
   }
 
-  Future<Map<String, dynamic>> getById(int id) async {
+  Future<Map<String, dynamic>> getById(dynamic id) async {
     final response = await _api.get(ApiConfig.areaById(id));
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -84,21 +84,21 @@ class AreasService {
     }
   }
 
-  Future<void> update(int id, Map<String, dynamic> data) async {
+  Future<void> update(dynamic id, Map<String, dynamic> data) async {
     final response = await _api.put(ApiConfig.areaById(id), data);
     if (response.statusCode != 200) {
       throw ApiException('Alan güncellenemedi');
     }
   }
 
-  Future<void> toggleActive(int id) async {
+  Future<void> toggleActive(dynamic id) async {
     final response = await _api.patch(ApiConfig.areaToggle(id));
     if (response.statusCode != 200) {
       throw ApiException('Alan durumu değiştirilemedi');
     }
   }
 
-  Future<void> deleteArea(int id) async {
+  Future<void> deleteArea(dynamic id) async {
     final response = await _api.delete(ApiConfig.areaById(id));
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ApiException('Alan silinemedi');
@@ -118,7 +118,7 @@ class OccupancyService {
     throw ApiException('Canlı veriler alınamadı');
   }
 
-  Future<Map<String, dynamic>> liveOne(int areaId) async {
+  Future<Map<String, dynamic>> liveOne(dynamic areaId) async {
     final response = await _api.get(ApiConfig.occupancyLiveOne(areaId));
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -126,7 +126,7 @@ class OccupancyService {
     throw ApiException('Alan verisi alınamadı');
   }
 
-  Future<List<dynamic>> history(int areaId, {int hours = 24}) async {
+  Future<List<dynamic>> history(dynamic areaId, {int hours = 24}) async {
     final response = await _api.get(
       ApiConfig.occupancyHistory(areaId, hours: hours),
     );

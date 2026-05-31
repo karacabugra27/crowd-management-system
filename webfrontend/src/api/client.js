@@ -117,7 +117,7 @@ export const occupancyApi = {
 
 /* ─── Users ─────────────────────────────────────────────── */
 export const usersApi = {
-  me: () => api.get("/api/users/me"),
+  me: () => api.get("/api/auth/me"),
   updateMe: (data) => api.put("/api/users/me", data),
 };
 

@@ -77,19 +77,25 @@ export default function MapPage() {
 
   // WebSocket updates
   const handleWsMessage = useCallback((msg) => {
-    setHeatmap((prev) => {
-      const idx = prev.findIndex((h) => h.area_id === msg.area_id);
-      if (idx >= 0) {
+    if (msg.type === "occupancy.live" && Array.isArray(msg.data)) {
+      setHeatmap(msg.data);
+    } else if (msg.type === "occupancy_update" && msg.data) {
+      setHeatmap((prev) => {
         const copy = [...prev];
-        copy[idx] = {
-          ...copy[idx],
-          occupancy_pct: msg.occupancy_pct,
-          status: msg.status,
-        };
+        const items = Array.isArray(msg.data) ? msg.data : [msg.data];
+        items.forEach((item) => {
+          const idx = copy.findIndex((h) => h.area_id === item.area_id);
+          if (idx >= 0) {
+            copy[idx] = {
+              ...copy[idx],
+              occupancy_pct: item.occupancy_pct,
+              status: item.status,
+            };
+          }
+        });
         return copy;
-      }
-      return prev;
-    });
+      });
+    }
   }, []);
 
   const { connected } = useWebSocket(null, handleWsMessage);

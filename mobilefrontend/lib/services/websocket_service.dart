@@ -8,7 +8,7 @@ class WebSocketService {
   WebSocketChannel? _channel;
   Timer? _reconnectTimer;
   bool _isConnected = false;
-  final int? areaId;
+  final dynamic areaId;
   final void Function(Map<String, dynamic>)? onMessage;
   final void Function(bool)? onConnectionChange;
 

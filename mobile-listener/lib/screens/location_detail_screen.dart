@@ -578,17 +578,18 @@ class _DeviceLogEntry extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   device.name,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 13,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
                 Text(
-                  device.macAddress,
+                  'Bluetooth Cihazı',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
                         fontSize: 11,
                         color: AppColors.textTertiary,
                       ),

@@ -88,7 +88,7 @@ async def _broadcast_loop() -> None:
                 await manager.broadcast({"type": "occupancy.live", "data": payload})
         except Exception:  # noqa: BLE001
             logger.exception("Broadcast döngüsü hatası")
-        await asyncio.sleep(30)
+        await asyncio.sleep(3)
 
 
 def _build_live_payload() -> list[dict]:

@@ -32,7 +32,7 @@ class ApiService {
   // ------ Ayarlar ------
   /// Üretim için: 'http://BILGISAYAR_IP:8000'
   /// (Eğer telefon ve bilgisayar aynı Wi-Fi'daysa, bilgisayarın yerel IP'sini kullan)
-  static const String _defaultBaseUrl = 'http://10.0.2.2:8000'; // Android emülatör için
+  static const String _defaultBaseUrl = 'http://192.168.1.164:8000'; // Yiğit'in Bilgisayarı
   static const String _prefsBaseUrlKey = 'api_base_url';
   static const String _prefsListenerIdKey = 'listener_id';
 
@@ -80,13 +80,19 @@ class ApiService {
   /// Başarı durumunda `true`, hata durumunda `false` döner.
   Future<bool> sendBluetoothReport({
     required String areaId,
+    required String areaName,
     required int deviceCount,
+    double? latitude,
+    double? longitude,
   }) async {
     final url = Uri.parse('$_baseUrl/api/bluetooth/report');
     final body = jsonEncode({
       'area_id': areaId,
+      'area_name': areaName,
       'device_count': deviceCount,
       'listener_id': _listenerId,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
     });
 
     _log('INFO', 'Rapor gönderiliyor → area=$areaId cihaz=$deviceCount');

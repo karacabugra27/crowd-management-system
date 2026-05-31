@@ -59,21 +59,29 @@ class _DashboardPageState extends State<DashboardPage> {
       onMessage: (msg) {
         if (mounted) {
           setState(() {
-            final idx = _liveData.indexWhere(
-              (a) => a['area_id'] == msg['area_id'],
-            );
-            final updated = {
-              'area_id': msg['area_id'],
-              'area_name': msg['area_name'],
-              'device_count': msg['device_count'],
-              'occupancy_pct': msg['occupancy_pct'],
-              'status': msg['status'],
-              'last_updated': msg['recorded_at'],
-            };
-            if (idx >= 0) {
-              _liveData[idx] = updated;
-            } else {
-              _liveData.add(updated);
+            if (msg['type'] == 'occupancy.live' && msg['data'] is List) {
+              _liveData = List<dynamic>.from(msg['data']);
+            } else if (msg['type'] == 'occupancy_update' && msg['data'] != null) {
+              final data = msg['data'];
+              final items = data is List ? data : [data];
+              for (var item in items) {
+                final idx = _liveData.indexWhere(
+                  (a) => a['area_id'] == item['area_id'],
+                );
+                final updated = {
+                  'area_id': item['area_id'],
+                  'area_name': item['area_name'] ?? item['name'],
+                  'device_count': item['device_count'],
+                  'occupancy_pct': item['occupancy_pct'],
+                  'status': item['status'],
+                  'last_updated': item['last_updated'] ?? item['timestamp'],
+                };
+                if (idx >= 0) {
+                  _liveData[idx] = updated;
+                } else {
+                  _liveData.add(updated);
+                }
+              }
             }
           });
         }

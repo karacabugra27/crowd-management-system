@@ -37,8 +37,11 @@ router = APIRouter(prefix="/api/bluetooth", tags=["bluetooth"])
 # ---------- Pydantic ----------
 class BluetoothReport(BaseModel):
     area_id: str = Field(..., description="Kampüs alan ID'si (örn: 'kutuphane')")
+    area_name: str | None = Field(default=None, description="Mobil alandan gelen özel isim")
     device_count: int = Field(..., ge=0, description="Algılanan Bluetooth cihaz sayısı")
     listener_id: str = Field(default="unknown", description="Dinleyici cihaz kimliği")
+    latitude: float | None = Field(default=None, description="Telefondan gelen gerçek GPS enlemi")
+    longitude: float | None = Field(default=None, description="Telefondan gelen gerçek GPS boylamı")
 
 
 class BluetoothReportResponse(BaseModel):
@@ -63,17 +66,37 @@ def bluetooth_report(
     # 1. Alan kontrolü
     area = db.query(Area).filter(Area.id == payload.area_id).first()
     if not area:
-        known = [a.id for a in db.query(Area).all()]
-        logger.warning(
-            "Bluetooth raporu: bilinmeyen area_id=%s (listener=%s). Geçerli alanlar: %s",
-            payload.area_id,
-            payload.listener_id,
-            known,
+        import random
+        # Kütüphane etrafında rastgele bir konuma dağıt (üst üste binmemesi için) - YEDEK
+        lat_offset = random.uniform(-0.0015, 0.0015)
+        lng_offset = random.uniform(-0.0015, 0.0015)
+        
+        lat = payload.latitude if payload.latitude is not None else (38.3334 + lat_offset)
+        lng = payload.longitude if payload.longitude is not None else (38.4397 + lng_offset)
+        
+        custom_name = payload.area_name if payload.area_name else f"Mobil Alan ({payload.area_id[-4:]})"
+        
+        logger.info("Yeni alan oluşturuluyor: %s (%.4f, %.4f) - İsim: %s", payload.area_id, lat, lng, custom_name)
+        area = Area(
+            id=payload.area_id,
+            name=custom_name,
+            capacity=100,
+            latitude=lat,
+            longitude=lng,
+            floor=0,
         )
-        raise HTTPException(
-            status_code=404,
-            detail=f"Alan bulunamadı: '{payload.area_id}'. Geçerli alanlar: {known}",
-        )
+        db.add(area)
+        db.commit()
+        db.refresh(area)
+    else:
+        # Eğer mobil alan (loc_...) ise ve telefondan yeni konum gelmişse, koordinatı güncelle!
+        if payload.area_id.startswith("loc_") and payload.latitude and payload.longitude:
+            # Çok ufak değişiklikleri sürekli DB'ye yazmamak için basit kontrol
+            if abs(area.latitude - payload.latitude) > 0.00001 or abs(area.longitude - payload.longitude) > 0.00001:
+                area.latitude = payload.latitude
+                area.longitude = payload.longitude
+                db.commit()
+                db.refresh(area)
 
     # 2. Doluluk hesapla
     capacity = max(area.capacity, 1)
@@ -104,7 +127,7 @@ def bluetooth_report(
             .field("device_count", device_count)
             .field("occupancy_pct", pct)
             .field("capacity", capacity)
-            .time(datetime.now(timezone.utc), WritePrecision.SECONDS)
+            .time(datetime.now(timezone.utc), WritePrecision.S)
         )
         write_api.write(bucket=_settings.influxdb_bucket, org=_settings.influxdb_org, record=point)
         logger.info("InfluxDB yazma başarılı | area=%s", area.id)

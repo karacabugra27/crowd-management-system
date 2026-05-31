@@ -25,7 +25,7 @@ class _MapPageState extends State<MapPage> {
   List<dynamic> _areas = [];
   bool _loading = true;
   bool _wsConnected = false;
-  int? _selectedArea;
+  dynamic _selectedArea;
   WebSocketService? _ws;
   bool _showLegend = true;
 
@@ -91,13 +91,21 @@ class _MapPageState extends State<MapPage> {
       onMessage: (msg) {
         if (mounted) {
           setState(() {
-            final idx = _heatmap.indexWhere((h) => h['area_id'] == msg['area_id']);
-            if (idx >= 0) {
-              _heatmap[idx] = {
-                ..._heatmap[idx],
-                'occupancy_pct': msg['occupancy_pct'],
-                'status': msg['status'],
-              };
+            if (msg['type'] == 'occupancy.live' && msg['data'] is List) {
+              _heatmap = List<dynamic>.from(msg['data']);
+            } else if (msg['type'] == 'occupancy_update' && msg['data'] != null) {
+              final data = msg['data'];
+              final items = data is List ? data : [data];
+              for (var item in items) {
+                final idx = _heatmap.indexWhere((h) => h['area_id'] == item['area_id']);
+                if (idx >= 0) {
+                  _heatmap[idx] = {
+                    ..._heatmap[idx],
+                    'occupancy_pct': item['occupancy_pct'],
+                    'status': item['status'],
+                  };
+                }
+              }
             }
           });
         }

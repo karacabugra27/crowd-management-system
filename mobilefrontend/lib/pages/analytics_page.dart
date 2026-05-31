@@ -18,7 +18,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   final _occupancyService = OccupancyService();
 
   List<dynamic> _areas = [];
-  int? _selectedArea;
+  String? _selectedArea;
   int _hours = 24;
   List<dynamic> _history = [];
   List<dynamic> _summary = [];
@@ -47,7 +47,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         setState(() {
           _areas = areas;
           if (areas.isNotEmpty && _selectedArea == null) {
-            _selectedArea = areas[0]['id'];
+            _selectedArea = areas[0]['id'].toString();
           }
           _loading = false;
         });
@@ -91,7 +91,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   String get _areaName {
     if (_selectedArea == null) return '';
     final area = _areas.firstWhere(
-      (a) => a['id'] == _selectedArea,
+      (a) => a['id'].toString() == _selectedArea,
       orElse: () => null,
     );
     return area?['name'] ?? '';
@@ -163,7 +163,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                       border: Border.all(color: AppColors.border),
                     ),
                     child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int>(
+                      child: DropdownButton<String>(
                         value: _selectedArea,
                         isExpanded: true,
                         dropdownColor: AppColors.bgCard,
@@ -172,8 +172,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                           fontSize: 14,
                         ),
                         items: _areas.map((a) {
-                          return DropdownMenuItem<int>(
-                            value: a['id'],
+                          return DropdownMenuItem<String>(
+                            value: a['id'].toString(),
                             child: Text(a['name'] ?? ''),
                           );
                         }).toList(),

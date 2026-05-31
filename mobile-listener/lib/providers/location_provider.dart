@@ -59,8 +59,27 @@ class LocationProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    await Future.delayed(const Duration(milliseconds: 1000));
-    _locations = MockData.getLocations();
+    try {
+      // Önce Backend'den gerçek alanları çek (Kütüphane, Yemekhane vb.)
+      final apiAreas = await ApiService.instance.fetchAreas();
+      if (apiAreas.isNotEmpty) {
+        _locations = apiAreas.map((a) => MonitoringLocation(
+          id: a['id'],
+          name: a['name'],
+          latitude: (a['latitude'] as num).toDouble(),
+          longitude: (a['longitude'] as num).toDouble(),
+          maxCapacity: a['capacity'] as int,
+          currentDeviceCount: 0,
+          isScanning: false,
+        )).toList();
+      } else {
+        // Eğer veritabanı tamamen boşsa mock veri göster
+        _locations = MockData.getLocations();
+      }
+    } catch (e) {
+      debugPrint("Gerçek alanlar çekilemedi, mock kullanılıyor: $e");
+      _locations = MockData.getLocations();
+    }
 
     // Init the BLE stream listener which runs globally
     _initBleListener();
@@ -167,7 +186,10 @@ class LocationProvider extends ChangeNotifier {
       // Backend'e gönder (asenkron, UI'ı bloklamaz)
       ApiService.instance.sendBluetoothReport(
         areaId: locId,
+        areaName: _locations[index].name,
         deviceCount: activeDevices.length,
+        latitude: _locations[index].latitude,
+        longitude: _locations[index].longitude,
       );
     }
     
