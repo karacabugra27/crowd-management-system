@@ -1,1 +1,28 @@
+# Node
+node_modules/
+dist/
+admin-panel/node_modules/
+admin-panel/dist/
+
+# Env
+.env
+*.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Flutter
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# OS
+.DS_Store
+Thumbs.db
+
 /.claude
