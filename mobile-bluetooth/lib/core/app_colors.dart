@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Core color palette for the Bluetooth Occupancy Admin Panel.
+/// Core color palette for the Crowdly Bluetooth scanner app.
 /// Dark theme with neon accents for density visualization.
 class AppColors {
   AppColors._();

@@ -15,7 +15,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool _isRegister = false;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String _error = '';
@@ -34,27 +33,32 @@ class _LoginPageState extends State<LoginPage> {
       _loading = true;
     });
 
+    final auth = context.read<AuthProvider>();
     try {
-      final auth = context.read<AuthProvider>();
-      if (_isRegister) {
-        await auth.register(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-      } else {
-        await auth.login(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
+      await auth.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      // Mobile-user only exposes admin-protected views behind this form. If
+      // the account isn't an admin, sign back out immediately so the rest of
+      // the app keeps treating the user as a guest.
+      if (!auth.isAdmin) {
+        await auth.logout();
+        if (mounted) {
+          setState(() =>
+              _error = 'Bu hesap yönetici değil. Yalnızca admin girişine izin verilir.');
+        }
+        return;
+      }
+
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
       }
     } catch (e) {
-      setState(() {
-        _error = cleanError(e);
-      });
+      if (mounted) setState(() => _error = cleanError(e));
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -64,6 +68,18 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF080812),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+                tooltip: 'Geri',
+              )
+            : null,
+      ),
       body: Stack(
         children: [
           // Animated background orbs
@@ -130,7 +146,7 @@ class _LoginPageState extends State<LoginPage> {
                             colors: [AppColors.purple, AppColors.blue],
                           ).createShader(bounds),
                           child: const Text(
-                            'CrowdPulse',
+                            'Crowdly',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
@@ -140,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Akıllı Kampüs Kalabalık Yönetim Sistemi',
+                          'Yönetim Paneli',
                           style: TextStyle(
                             color: AppColors.textDim,
                             fontSize: 13,
@@ -149,23 +165,21 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 32),
 
-                        // Login/Register header
-                        Text(
-                          _isRegister ? 'Hesap Oluştur' : 'Hoş Geldiniz',
-                          style: const TextStyle(
+                        const Text(
+                          'Yönetici Girişi',
+                          style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          _isRegister
-                              ? 'Yeni bir hesap oluşturun'
-                              : 'Hesabınıza giriş yapın',
-                          style: const TextStyle(
+                        const Text(
+                          'Yönetim paneline erişmek için giriş yapın',
+                          style: TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 14,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
 
@@ -227,25 +241,23 @@ class _LoginPageState extends State<LoginPage> {
                           onPressed: _handleSubmit,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
+                            children: const [
                               Icon(
-                                _isRegister
-                                    ? Icons.person_add_outlined
-                                    : Icons.login_rounded,
+                                Icons.login_rounded,
                                 size: 20,
                                 color: Colors.white,
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               Text(
-                                _isRegister ? 'Kayıt Ol' : 'Giriş Yap',
-                                style: const TextStyle(
+                                'Giriş Yap',
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              const Icon(
+                              SizedBox(width: 8),
+                              Icon(
                                 Icons.arrow_forward,
                                 size: 18,
                                 color: Colors.white,
@@ -253,37 +265,15 @@ class _LoginPageState extends State<LoginPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                        // Toggle login/register
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _isRegister
-                                  ? 'Zaten hesabınız var mı?'
-                                  : 'Hesabınız yok mu?',
-                              style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 14,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _isRegister = !_isRegister;
-                                  _error = '';
-                                });
-                              },
-                              child: Text(
-                                _isRegister ? 'Giriş Yap' : 'Kayıt Ol',
-                                style: const TextStyle(
-                                  color: AppColors.purple,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
+                        const Text(
+                          'Hesap oluşturmak için sistem yöneticinizle iletişime geçin.',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),

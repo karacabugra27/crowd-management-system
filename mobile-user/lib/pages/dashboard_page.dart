@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../core/api_config.dart';
 import '../core/theme.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
@@ -56,6 +58,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   void _connectWebSocket() {
     _ws = WebSocketService(
+      config: context.read<ApiConfig>(),
       onMessage: (msg) {
         if (mounted) {
           setState(() {

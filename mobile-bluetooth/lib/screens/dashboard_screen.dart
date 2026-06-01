@@ -225,11 +225,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Occupancy Monitor',
+                  'Crowdly Tarayıcı',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 Text(
-                  '${provider.locations.length} active bases',
+                  '${provider.locations.length} aktif konum',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

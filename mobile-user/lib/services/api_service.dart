@@ -8,7 +8,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _api.post(
-      ApiConfig.authLogin,
+      ApiPaths.authLogin,
       {'email': email, 'password': password},
       intercept401: false,
     );
@@ -24,7 +24,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> register(String email, String password) async {
     final response = await _api.post(
-      ApiConfig.authRegister,
+      ApiPaths.authRegister,
       {'email': email, 'password': password},
       intercept401: false,
     );
@@ -48,7 +48,7 @@ class UsersService {
   final _api = ApiClient();
 
   Future<Map<String, dynamic>> getMe() async {
-    final response = await _api.get(ApiConfig.usersMe);
+    final response = await _api.get(ApiPaths.usersMe);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -61,7 +61,7 @@ class AreasService {
   final _api = ApiClient();
 
   Future<List<dynamic>> list() async {
-    final response = await _api.get(ApiConfig.areas);
+    final response = await _api.get(ApiPaths.areas);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List;
     }
@@ -69,7 +69,7 @@ class AreasService {
   }
 
   Future<Map<String, dynamic>> getById(int id) async {
-    final response = await _api.get(ApiConfig.areaById(id));
+    final response = await _api.get(ApiPaths.areaById(id));
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -77,7 +77,7 @@ class AreasService {
   }
 
   Future<void> create(Map<String, dynamic> data) async {
-    final response = await _api.post(ApiConfig.areas, data);
+    final response = await _api.post(ApiPaths.areas, data);
     if (response.statusCode != 200 && response.statusCode != 201) {
       final err = jsonDecode(response.body);
       throw ApiException(err['detail'] ?? 'Alan oluşturulamadı');
@@ -85,21 +85,21 @@ class AreasService {
   }
 
   Future<void> update(int id, Map<String, dynamic> data) async {
-    final response = await _api.put(ApiConfig.areaById(id), data);
+    final response = await _api.put(ApiPaths.areaById(id), data);
     if (response.statusCode != 200) {
       throw ApiException('Alan güncellenemedi');
     }
   }
 
   Future<void> toggleActive(int id) async {
-    final response = await _api.patch(ApiConfig.areaToggle(id));
+    final response = await _api.patch(ApiPaths.areaToggle(id));
     if (response.statusCode != 200) {
       throw ApiException('Alan durumu değiştirilemedi');
     }
   }
 
   Future<void> deleteArea(int id) async {
-    final response = await _api.delete(ApiConfig.areaById(id));
+    final response = await _api.delete(ApiPaths.areaById(id));
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ApiException('Alan silinemedi');
     }
@@ -111,7 +111,7 @@ class OccupancyService {
   final _api = ApiClient();
 
   Future<List<dynamic>> live() async {
-    final response = await _api.get(ApiConfig.occupancyLive);
+    final response = await _api.get(ApiPaths.occupancyLive);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List;
     }
@@ -119,7 +119,7 @@ class OccupancyService {
   }
 
   Future<Map<String, dynamic>> liveOne(int areaId) async {
-    final response = await _api.get(ApiConfig.occupancyLiveOne(areaId));
+    final response = await _api.get(ApiPaths.occupancyLiveOne(areaId));
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -128,7 +128,7 @@ class OccupancyService {
 
   Future<List<dynamic>> history(int areaId, {int hours = 24}) async {
     final response = await _api.get(
-      ApiConfig.occupancyHistory(areaId, hours: hours),
+      ApiPaths.occupancyHistory(areaId, hours: hours),
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List;
@@ -137,7 +137,7 @@ class OccupancyService {
   }
 
   Future<List<dynamic>> heatmap() async {
-    final response = await _api.get(ApiConfig.occupancyHeatmap);
+    final response = await _api.get(ApiPaths.occupancyHeatmap);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List;
     }
@@ -145,7 +145,7 @@ class OccupancyService {
   }
 
   Future<List<dynamic>> summary() async {
-    final response = await _api.get(ApiConfig.occupancySummary);
+    final response = await _api.get(ApiPaths.occupancySummary);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List;
     }
@@ -158,7 +158,7 @@ class AdminService {
   final _api = ApiClient();
 
   Future<Map<String, dynamic>> dashboard() async {
-    final response = await _api.get(ApiConfig.adminDashboard);
+    final response = await _api.get(ApiPaths.adminDashboard);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -166,7 +166,7 @@ class AdminService {
   }
 
   Future<List<dynamic>> listScanners() async {
-    final response = await _api.get(ApiConfig.adminScanners);
+    final response = await _api.get(ApiPaths.adminScanners);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List;
     }
@@ -174,7 +174,7 @@ class AdminService {
   }
 
   Future<Map<String, dynamic>> createScanner(Map<String, dynamic> data) async {
-    final response = await _api.post(ApiConfig.adminScanners, data);
+    final response = await _api.post(ApiPaths.adminScanners, data);
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
     }
@@ -183,7 +183,7 @@ class AdminService {
   }
 
   Future<void> deleteScanner(int id) async {
-    final response = await _api.delete(ApiConfig.adminScannerDelete(id));
+    final response = await _api.delete(ApiPaths.adminScannerDelete(id));
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw ApiException('Tarayıcı silinemedi');
     }

@@ -1,12 +1,11 @@
-class ApiConfig {
-  // Geliştirme ortamında backend URL'si
-  // Android emulator: 10.0.2.2, iOS simulator: 127.0.0.1, gerçek cihaz: bilgisayar IP'si
-  static const String baseUrl = 'http://10.0.2.2:8000';
+/// Endpoint path catalogue for the Crowdly backend.
+///
+/// The base URL lives in [ApiConfig] (runtime-mutable, SharedPreferences-backed)
+/// — this class only owns paths so the rest of the app stays unchanged when the
+/// backend host moves.
+class ApiPaths {
+  ApiPaths._();
 
-  // WebSocket URL
-  static String get wsBaseUrl => baseUrl.replaceFirst('http', 'ws');
-
-  // API endpoints
   static const String authLogin = '/api/auth/login';
   static const String authRegister = '/api/auth/register';
   static const String authRefresh = '/api/auth/refresh';
@@ -28,9 +27,6 @@ class ApiConfig {
   static const String adminScanners = '/api/admin/scanners';
   static String adminScannerDelete(int id) => '/api/admin/scanners/$id';
 
-  static String wsOccupancy({int? areaId}) {
-    final base = '$wsBaseUrl/ws/occupancy';
-    if (areaId != null) return '$base?area_id=$areaId';
-    return base;
-  }
+  static String wsOccupancy({int? areaId}) =>
+      areaId == null ? '/ws/occupancy' : '/ws/occupancy?area_id=$areaId';
 }
