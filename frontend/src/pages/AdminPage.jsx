@@ -19,6 +19,7 @@ import {
   ScrollText,
   LayoutGrid,
   RefreshCw,
+  Pencil,
 } from "lucide-react";
 
 const TABS = [
@@ -43,6 +44,7 @@ export default function AdminPage() {
   const [logAreaFilter, setLogAreaFilter] = useState("");
 
   const [showAreaModal, setShowAreaModal] = useState(false);
+  const [editingArea, setEditingArea] = useState(null); // area object being edited
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [newApiKey, setNewApiKey] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -143,6 +145,41 @@ export default function AdminPage() {
     }
   };
 
+  const handleEditArea = (area) => {
+    setEditingArea(area);
+    setAreaForm({
+      name: area.name ?? "",
+      floor: area.floor != null ? String(area.floor) : "",
+      capacity: String(area.capacity ?? ""),
+      latitude: area.latitude != null ? String(area.latitude) : "",
+      longitude: area.longitude != null ? String(area.longitude) : "",
+    });
+    setFormError("");
+    setShowAreaModal(true);
+  };
+
+  const handleUpdateArea = async (e) => {
+    e.preventDefault();
+    setFormError("");
+    try {
+      const payload = {
+        name: areaForm.name.trim(),
+        capacity: parseInt(areaForm.capacity, 10),
+      };
+      if (areaForm.floor) payload.floor = parseInt(areaForm.floor, 10);
+      if (areaForm.latitude) payload.latitude = parseFloat(areaForm.latitude);
+      if (areaForm.longitude) payload.longitude = parseFloat(areaForm.longitude);
+
+      await areasApi.update(editingArea.id, payload);
+      setShowAreaModal(false);
+      setEditingArea(null);
+      setAreaForm({ name: "", floor: "", capacity: "", latitude: "", longitude: "" });
+      fetchAll();
+    } catch (err) {
+      setFormError(translateError(err, "Alan güncellenemedi."));
+    }
+  };
+
   const handleCreateScanner = async (e) => {
     e.preventDefault();
     setFormError("");
@@ -233,7 +270,13 @@ export default function AdminPage() {
       {activeTab === "areas" && (
         <AreasTab
           areas={areas}
-          onAdd={() => setShowAreaModal(true)}
+          onAdd={() => {
+            setEditingArea(null);
+            setAreaForm({ name: "", floor: "", capacity: "", latitude: "", longitude: "" });
+            setFormError("");
+            setShowAreaModal(true);
+          }}
+          onEdit={handleEditArea}
           onToggle={handleToggleArea}
           onDelete={(a) => setDeleteConfirm({ type: "area", id: a.id, name: a.name })}
         />
@@ -269,11 +312,13 @@ export default function AdminPage() {
           form={areaForm}
           setForm={setAreaForm}
           formError={formError}
+          editingArea={editingArea}
           onClose={() => {
             setShowAreaModal(false);
+            setEditingArea(null);
             setFormError("");
           }}
-          onSubmit={handleCreateArea}
+          onSubmit={editingArea ? handleUpdateArea : handleCreateArea}
         />
       )}
 
@@ -390,7 +435,7 @@ function OverviewTab({ stats, areaCount, scannerCount }) {
   );
 }
 
-function AreasTab({ areas, onAdd, onToggle, onDelete }) {
+function AreasTab({ areas, onAdd, onEdit, onToggle, onDelete }) {
   return (
     <section className="section">
       <div className="section-header">
@@ -433,6 +478,13 @@ function AreasTab({ areas, onAdd, onToggle, onDelete }) {
                 <td>{formatDate(a.created_at)}</td>
                 <td>
                   <div className="action-btns">
+                    <button
+                      className="icon-btn"
+                      onClick={() => onEdit(a)}
+                      title="Düzenle"
+                    >
+                      <Pencil size={15} />
+                    </button>
                     <button
                       className="icon-btn"
                       onClick={() => onToggle(a.id)}
@@ -624,12 +676,13 @@ function LogsTab({
 
 /* ───────────────────────── Modals ──────────────────────── */
 
-function AreaModal({ form, setForm, formError, onClose, onSubmit }) {
+function AreaModal({ form, setForm, formError, editingArea, onClose, onSubmit }) {
+  const isEdit = editingArea != null;
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Yeni Alan Ekle</h3>
+          <h3>{isEdit ? "Alanı Düzenle" : "Yeni Alan Ekle"}</h3>
           <button className="modal-close" onClick={onClose}>
             <X size={20} />
           </button>
@@ -695,7 +748,8 @@ function AreaModal({ form, setForm, formError, onClose, onSubmit }) {
             </div>
           </div>
           <button type="submit" className="btn btn-primary btn-full">
-            <Plus size={16} /> Alan Oluştur
+            {isEdit ? <Pencil size={16} /> : <Plus size={16} />}
+            {isEdit ? " Değişiklikleri Kaydet" : " Alan Oluştur"}
           </button>
         </form>
       </div>

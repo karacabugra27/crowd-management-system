@@ -62,7 +62,7 @@ class CrowdlyScannerApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<ApiConfig>.value(value: config),
         ChangeNotifierProvider<LocationProvider>.value(
-          value: locationProvider..loadLocations(),
+          value: locationProvider..initialize(),
         ),
         ChangeNotifierProvider<ScanUploader>.value(value: uploader),
       ],

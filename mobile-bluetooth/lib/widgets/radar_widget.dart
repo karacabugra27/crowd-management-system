@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:bluetooth_occupancy_admin/core/app_colors.dart';
+import 'package:crowdly_scanner/core/app_colors.dart';
 
 class RadarWidget extends StatefulWidget {
   final bool isScanning;

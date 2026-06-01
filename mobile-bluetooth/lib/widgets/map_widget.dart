@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:bluetooth_occupancy_admin/core/app_colors.dart';
-import 'package:bluetooth_occupancy_admin/models/location_model.dart';
+import 'package:crowdly_scanner/core/app_colors.dart';
+import 'package:crowdly_scanner/models/location_model.dart';
 
 class MapWidget extends StatefulWidget {
   final List<MonitoringLocation> locations;

@@ -10,6 +10,7 @@ class ApiConfig extends ChangeNotifier {
   static const _kBaseUrl = 'crowdly.baseUrl';
   static const _kApiKey = 'crowdly.apiKey';
   static const _kAreaId = 'crowdly.areaId';
+  static const _kAreaName = 'crowdly.areaName';
   static const _kIntervalSec = 'crowdly.uploadIntervalSec';
   static const _kEnabled = 'crowdly.uploadEnabled';
 
@@ -19,6 +20,7 @@ class ApiConfig extends ChangeNotifier {
   String _baseUrl = _defaultBaseUrl;
   String _apiKey = '';
   int? _areaId;
+  String _areaName = '';
   int _intervalSec = _defaultIntervalSec;
   bool _uploadEnabled = false;
   bool _loaded = false;
@@ -26,6 +28,7 @@ class ApiConfig extends ChangeNotifier {
   String get baseUrl => _baseUrl;
   String get apiKey => _apiKey;
   int? get areaId => _areaId;
+  String get areaName => _areaName;
   int get intervalSec => _intervalSec;
   bool get uploadEnabled => _uploadEnabled;
   bool get loaded => _loaded;
@@ -42,6 +45,7 @@ class ApiConfig extends ChangeNotifier {
     _baseUrl = prefs.getString(_kBaseUrl) ?? _defaultBaseUrl;
     _apiKey = prefs.getString(_kApiKey) ?? '';
     _areaId = prefs.getInt(_kAreaId);
+    _areaName = prefs.getString(_kAreaName) ?? '';
     _intervalSec = prefs.getInt(_kIntervalSec) ?? _defaultIntervalSec;
     _uploadEnabled = prefs.getBool(_kEnabled) ?? false;
     _loaded = true;
@@ -52,6 +56,7 @@ class ApiConfig extends ChangeNotifier {
     String? baseUrl,
     String? apiKey,
     int? areaId,
+    String? areaName,
     int? intervalSec,
     bool? uploadEnabled,
   }) async {
@@ -67,6 +72,10 @@ class ApiConfig extends ChangeNotifier {
     if (areaId != null) {
       _areaId = areaId;
       await prefs.setInt(_kAreaId, areaId);
+    }
+    if (areaName != null) {
+      _areaName = areaName;
+      await prefs.setString(_kAreaName, areaName);
     }
     if (intervalSec != null) {
       _intervalSec = intervalSec.clamp(5, 600);

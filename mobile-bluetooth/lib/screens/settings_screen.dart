@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/api_config.dart';
 import '../core/app_colors.dart';
+import '../services/backend_service.dart';
 import '../services/scan_uploader.dart';
 
 /// Configuration UI for connecting this scanner to a Crowdly backend.
@@ -17,10 +18,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _baseUrlCtrl;
   late final TextEditingController _apiKeyCtrl;
-  late final TextEditingController _areaIdCtrl;
   late final TextEditingController _intervalCtrl;
+
   bool _uploadEnabled = false;
   bool _saving = false;
+
+  // Area picker state
+  List<Map<String, dynamic>> _areas = [];
+  bool _loadingAreas = false;
+  String? _areasError;
+  int? _selectedAreaId;
+  String _selectedAreaName = '';
+
+  late BackendService _backendService;
 
   @override
   void initState() {
@@ -28,28 +38,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final config = context.read<ApiConfig>();
     _baseUrlCtrl = TextEditingController(text: config.baseUrl);
     _apiKeyCtrl = TextEditingController(text: config.apiKey);
-    _areaIdCtrl = TextEditingController(text: config.areaId?.toString() ?? '');
     _intervalCtrl = TextEditingController(text: config.intervalSec.toString());
     _uploadEnabled = config.uploadEnabled;
+    _selectedAreaId = config.areaId;
+    _selectedAreaName = config.areaName;
+    _backendService = BackendService(config);
+
+    // Auto-load areas if URL is already configured
+    if (config.baseUrl.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadAreas());
+    }
   }
 
   @override
   void dispose() {
     _baseUrlCtrl.dispose();
     _apiKeyCtrl.dispose();
-    _areaIdCtrl.dispose();
     _intervalCtrl.dispose();
+    _backendService.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAreas() async {
+    final url = _baseUrlCtrl.text.trim();
+    if (!url.startsWith('http')) {
+      setState(() => _areasError = 'Önce geçerli bir Backend URL girin.');
+      return;
+    }
+    setState(() {
+      _loadingAreas = true;
+      _areasError = null;
+    });
+    final areas = await _backendService.fetchAreas(url);
+    if (!mounted) return;
+    if (areas.isEmpty) {
+      setState(() {
+        _loadingAreas = false;
+        _areasError = 'Alan bulunamadı. URL\'i kontrol edin veya admin panelinden alan ekleyin.';
+      });
+    } else {
+      setState(() {
+        _areas = areas;
+        _loadingAreas = false;
+        // If previously selected area is still in list, keep it
+        final stillValid = areas.any((a) => a['id'] == _selectedAreaId);
+        if (!stillValid) {
+          _selectedAreaId = null;
+          _selectedAreaName = '';
+        }
+      });
+    }
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedAreaId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen bir alan seçin.'),
+          backgroundColor: AppColors.densityHigh,
+        ),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await context.read<ApiConfig>().update(
             baseUrl: _baseUrlCtrl.text,
             apiKey: _apiKeyCtrl.text,
-            areaId: int.parse(_areaIdCtrl.text),
+            areaId: _selectedAreaId,
+            areaName: _selectedAreaName,
             intervalSec: int.parse(_intervalCtrl.text),
             uploadEnabled: _uploadEnabled,
           );
@@ -68,12 +126,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _testConnection() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedAreaId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lütfen önce bir alan seçin.'),
+          backgroundColor: AppColors.densityHigh,
+        ),
+      );
+      return;
+    }
     final uploader = context.read<ScanUploader>();
     final messenger = ScaffoldMessenger.of(context);
     await context.read<ApiConfig>().update(
           baseUrl: _baseUrlCtrl.text,
           apiKey: _apiKeyCtrl.text,
-          areaId: int.parse(_areaIdCtrl.text),
+          areaId: _selectedAreaId,
+          areaName: _selectedAreaName,
         );
     await uploader.sendOnce();
     if (!mounted) return;
@@ -106,8 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             const _Section(
               title: 'Crowdly Backend',
-              subtitle:
-                  'Bu tarayıcının kayıtları nereye gönderileceğini belirtin.',
+              subtitle: 'Bu tarayıcının kayıtları nereye gönderileceğini belirtin.',
             ),
             _field(
               label: 'Backend URL',
@@ -121,21 +188,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               hint: 'Tarayıcıya admin panelinden verilen anahtar',
               controller: _apiKeyCtrl,
               obscure: true,
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'API anahtarı zorunludur'
-                  : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'API anahtarı zorunludur' : null,
             ),
-            _field(
-              label: 'Alan ID',
-              hint: 'Bu cihazın okuyacağı alanın ID değeri',
-              controller: _areaIdCtrl,
-              keyboardType: TextInputType.number,
-              validator: (v) {
-                final n = int.tryParse(v ?? '');
-                return (n == null || n <= 0) ? 'Pozitif bir sayı girin' : null;
-              },
+            const SizedBox(height: 4),
+            // ── Area picker ──────────────────────────────────────
+            const _Section(
+              title: 'Tarama Alanı',
+              subtitle: 'Bu cihazın Bluetooth cihazlarını sayacağı alan.',
             ),
-            const SizedBox(height: 12),
+            _AreaPicker(
+              areas: _areas,
+              loading: _loadingAreas,
+              error: _areasError,
+              selectedId: _selectedAreaId,
+              onReload: _loadAreas,
+              onSelected: (id, name) => setState(() {
+                _selectedAreaId = id;
+                _selectedAreaName = name;
+              }),
+            ),
+            const SizedBox(height: 16),
+            // ── Upload settings ──────────────────────────────────
             const _Section(
               title: 'Yükleme',
               subtitle: 'Tarama sırasında verinin sunucuya ne sıklıkta gönderileceği.',
@@ -224,6 +298,152 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+// ── Area Picker Widget ──────────────────────────────────────────────
+
+class _AreaPicker extends StatelessWidget {
+  final List<Map<String, dynamic>> areas;
+  final bool loading;
+  final String? error;
+  final int? selectedId;
+  final VoidCallback onReload;
+  final void Function(int id, String name) onSelected;
+
+  const _AreaPicker({
+    required this.areas,
+    required this.loading,
+    required this.error,
+    required this.selectedId,
+    required this.onReload,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Alanlar yükleniyor…',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ],
+        ),
+      );
+    }
+
+    if (error != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.densityHigh.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(error!,
+                style: const TextStyle(color: AppColors.densityHigh, fontSize: 13)),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onReload,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Tekrar Dene'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (areas.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            const Text('Alan listesi yüklenmedi.',
+                style: TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onReload,
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: const Text('Alanları Yükle'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              isExpanded: true,
+              dropdownColor: AppColors.surface,
+              value: selectedId,
+              hint: const Text('Alan seçin…',
+                  style: TextStyle(color: AppColors.textSecondary)),
+              items: areas.map((a) {
+                final id = a['id'] as int;
+                final name = a['name'] as String;
+                final cap = a['capacity'] as int;
+                return DropdownMenuItem<int>(
+                  value: id,
+                  child: Text('$name  (kapasite: $cap)',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.textPrimary)),
+                );
+              }).toList(),
+              onChanged: (id) {
+                if (id == null) return;
+                final area = areas.firstWhere((a) => a['id'] == id);
+                onSelected(id, area['name'] as String);
+              },
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onReload,
+              icon: const Icon(Icons.refresh, size: 14),
+              label: const Text('Yenile', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Section header ──────────────────────────────────────────────────
+
 class _Section extends StatelessWidget {
   const _Section({required this.title, required this.subtitle});
   final String title;
@@ -247,16 +467,15 @@ class _Section extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
         ],
       ),
     );
   }
 }
+
+// ── Uploader status card ────────────────────────────────────────────
 
 class _UploaderStatusCard extends StatelessWidget {
   @override
@@ -291,10 +510,7 @@ class _UploaderStatusCard extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 8),
                   Text(label,
@@ -311,7 +527,7 @@ class _UploaderStatusCard extends StatelessWidget {
               if (uploader.lastSyncedAt != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Son senkron: ${_formatTime(uploader.lastSyncedAt!)}'
+                  'Son senkron: ${_fmt(uploader.lastSyncedAt!)}'
                   '${uploader.lastDeviceCount != null ? ' · ${uploader.lastDeviceCount} cihaz' : ''}',
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
@@ -323,7 +539,7 @@ class _UploaderStatusCard extends StatelessWidget {
     );
   }
 
-  static String _formatTime(DateTime t) {
+  static String _fmt(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
   }

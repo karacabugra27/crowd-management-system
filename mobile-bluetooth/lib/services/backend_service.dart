@@ -119,6 +119,29 @@ class BackendService {
     }
   }
 
+  /// Fetches the list of active areas from the backend.
+  /// Does not require an API key — uses the base URL only.
+  Future<List<Map<String, dynamic>>> fetchAreas(String baseUrl) async {
+    final cleanUrl = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    if (cleanUrl.isEmpty) return [];
+    try {
+      final uri = Uri.parse('$cleanUrl/api/areas/');
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final list = jsonDecode(response.body) as List;
+        return list
+            .cast<Map<String, dynamic>>()
+            .where((e) => e['is_active'] == true)
+            .toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   void dispose() {
     _client.close();
   }

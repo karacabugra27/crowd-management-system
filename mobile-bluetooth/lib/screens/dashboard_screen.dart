@@ -1,127 +1,117 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../core/api_config.dart';
 import '../core/app_colors.dart';
-import '../core/app_router.dart';
-import '../models/location_model.dart';
 import '../providers/location_provider.dart';
-import '../widgets/map_widget.dart';
-import '../widgets/stat_card.dart';
+import '../services/scan_uploader.dart';
+import '../widgets/occupancy_gauge.dart';
 import '../widgets/density_indicator.dart';
-
-import 'add_location_screen.dart';
-import 'location_detail_screen.dart';
 import 'settings_screen.dart';
 
-/// Home screen with an interactive map showing all monitoring locations.
-/// Displays color-coded markers and summary statistics.
-class DashboardScreen extends StatefulWidget {
+/// Home screen: shows the configured area's live occupancy status.
+class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
-
-  @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
-}
-
-class _DashboardScreenState extends State<DashboardScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _fabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _fabController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
-
-    // Load mock data on first build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<LocationProvider>();
-      if (provider.locations.isEmpty && provider.isLoading) {
-        provider.loadLocations();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _fabController.dispose();
-    super.dispose();
-  }
-
-  void _onMarkerTapped(MonitoringLocation location) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _LocationBottomSheet(location: location),
-    );
-  }
-
-  void _navigateToAddLocation() {
-    Navigator.of(context).push(
-      AppRouter.slideUp(const AddLocationScreen(), name: AppRouter.addLocation),
-    );
-  }
-
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Consumer<LocationProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoading) {
-            return _buildLoadingState();
-          }
-
-          if (provider.locations.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return _buildContent(provider);
-        },
-      ),
-      floatingActionButton: ScaleTransition(
-        scale: CurvedAnimation(
-          parent: _fabController,
-          curve: Curves.elasticOut,
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: _navigateToAddLocation,
-          icon: const Icon(Icons.add_location_alt_rounded),
-          label: const Text('Add Base'),
-          heroTag: 'add_location_fab',
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Consumer3<ApiConfig, LocationProvider, ScanUploader>(
+          builder: (context, config, provider, uploader, _) {
+            return Column(
+              children: [
+                _Header(config: config),
+                Expanded(
+                  child: config.isComplete
+                      ? _ScanView(config: config, provider: provider, uploader: uploader)
+                      : _SetupPrompt(onSettings: () => _openSettings(context)),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  void _openSettings(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+}
+
+// ── Header ──────────────────────────────────────────────────────────
+
+class _Header extends StatelessWidget {
+  final ApiConfig config;
+  const _Header({required this.config});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Row(
         children: [
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              valueColor: AlwaysStoppedAnimation(
-                AppColors.accent.withValues(alpha: 0.8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.accent, AppColors.accent.withValues(alpha: 0.6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.bluetooth_connected_rounded,
+                color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Crowdly Tarayıcı',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  config.areaName.isNotEmpty ? config.areaName : 'Alan seçilmedi',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Loading monitoring bases...',
-            style: Theme.of(context).textTheme.bodyMedium,
+          IconButton(
+            tooltip: 'Sunucu ayarları',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+            icon: const Icon(Icons.settings_rounded, color: AppColors.textSecondary),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildEmptyState() {
+// ── Setup prompt (shown when not configured) ─────────────────────────
+
+class _SetupPrompt extends StatelessWidget {
+  final VoidCallback onSettings;
+  const _SetupPrompt({required this.onSettings});
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -141,320 +131,266 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
             const SizedBox(height: 24),
-            Text(
-              'No Monitoring Bases',
-              style: Theme.of(context).textTheme.headlineSmall,
+            const Text(
+              'Yapılandırma Gerekli',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Add your first listening base to start\ntracking Bluetooth occupancy.',
+            const Text(
+              'Taramaya başlamak için backend URL, API anahtarı ve alan seçmelisiniz.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: _navigateToAddLocation,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add First Base'),
+              onPressed: onSettings,
+              icon: const Icon(Icons.settings_rounded),
+              label: const Text('Ayarları Aç'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              ),
             ),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildContent(LocationProvider provider) {
-    return SafeArea(
-      child: Column(
-        children: [
-          // ─── Header ────────────────────────────────────────
-          _buildHeader(provider),
-
-          // ─── Stats Row ─────────────────────────────────────
-          _buildStatsRow(provider),
-
-          // ─── Map ───────────────────────────────────────────
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.border, width: 1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: MapWidget(
-                    locations: provider.locations,
-                    onMarkerTap: _onMarkerTapped,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(LocationProvider provider) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-      child: Row(
-        children: [
-          // App icon
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.accent, AppColors.accent.withValues(alpha: 0.6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.bluetooth_connected_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Crowdly Tarayıcı',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                Text(
-                  '${provider.locations.length} aktif konum',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          // Sunucu ayarları — Crowdly backend yapılandırması
-          IconButton(
-            tooltip: 'Sunucu ayarları',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-            icon: const Icon(
-              Icons.settings_rounded,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsRow(LocationProvider provider) {
-    return SizedBox(
-      height: 90,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        children: [
-          StatCard(
-            label: 'Locations',
-            value: '${provider.locations.length}',
-            icon: Icons.location_on_rounded,
-            accentColor: AppColors.accent,
-          ),
-          StatCard(
-            label: 'Total Devices',
-            value: '${provider.totalDevices}',
-            icon: Icons.bluetooth_rounded,
-            accentColor: AppColors.info,
-          ),
-          StatCard(
-            label: 'Avg. Occupancy',
-            value: '${provider.averageOccupancy.toStringAsFixed(0)}%',
-            icon: Icons.analytics_rounded,
-            accentColor: AppColors.getDensityColor(provider.averageOccupancy),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-/// Bottom sheet shown when a map marker is tapped.
-class _LocationBottomSheet extends StatelessWidget {
-  final MonitoringLocation location;
+// ── Scan view (shown when configured) ───────────────────────────────
 
-  const _LocationBottomSheet({required this.location});
+class _ScanView extends StatelessWidget {
+  final ApiConfig config;
+  final LocationProvider provider;
+  final ScanUploader uploader;
+
+  const _ScanView({
+    required this.config,
+    required this.provider,
+    required this.uploader,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final densityColor = AppColors.getDensityColor(location.occupancyPercentage);
+    final occupancyPct = uploader.lastOccupancyPct ?? 0.0;
+    final statusText = _statusLabel(uploader.lastStatus);
+    final statusColor = AppColors.getDensityColor(occupancyPct);
 
-    return Container(
-      margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: densityColor.withValues(alpha: 0.15),
-            blurRadius: 24,
-            spreadRadius: 2,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Occupancy gauge card ────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: statusColor.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                OccupancyGauge(
+                  percentage: occupancyPct,
+                  size: 180,
+                  label: statusText,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    DensityIndicator.fromPercentage(occupancyPct),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Stats row ───────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  label: 'Canlı Cihaz',
+                  value: '${provider.liveDeviceCount}',
+                  icon: Icons.bluetooth_rounded,
+                  color: AppColors.info,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  label: 'Son Yükleme',
+                  value: uploader.lastDeviceCount != null
+                      ? '${uploader.lastDeviceCount}'
+                      : '—',
+                  icon: Icons.cloud_upload_rounded,
+                  color: AppColors.accent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  label: 'Kapasite',
+                  value: '${config.areaId != null ? '?' : '—'}',
+                  icon: Icons.people_rounded,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Uploader status ─────────────────────────────────────
+          _UploaderCard(uploader: uploader),
+          const SizedBox(height: 20),
+
+          // ── Scan toggle button ──────────────────────────────────
+          SizedBox(
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                if (provider.isScanning) {
+                  await provider.stopScanning();
+                } else {
+                  await provider.startScanning();
+                }
+              },
+              icon: Icon(
+                provider.isScanning
+                    ? Icons.stop_rounded
+                    : Icons.play_arrow_rounded,
+              ),
+              label: Text(
+                provider.isScanning ? 'Taramayı Durdur' : 'Taramayı Başlat',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    provider.isScanning ? AppColors.densityHigh : AppColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ─── Drag handle ───────────────────────────────────
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-
-            // ─── Header Row ────────────────────────────────────
-            Row(
-              children: [
-                // Glowing status dot
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: densityColor,
-                    shape: BoxShape.circle,
-                    boxShadow: AppColors.neonGlow(densityColor,
-                        intensity: 0.5, blurRadius: 8),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    location.name,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                ),
-                DensityIndicator.fromPercentage(location.occupancyPercentage),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // ─── Stats Grid ────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: _StatTile(
-                    icon: Icons.bluetooth_rounded,
-                    label: 'Devices Found',
-                    value: '${location.currentDeviceCount}',
-                    color: AppColors.info,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatTile(
-                    icon: Icons.people_rounded,
-                    label: 'Full Capacity',
-                    value: '${location.maxCapacity}',
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // ─── Occupancy Bar ─────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border, width: 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Occupancy Rate',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      Text(
-                        '${location.occupancyPercentage.toStringAsFixed(1)}%',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: densityColor,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: location.occupancyPercentage / 100,
-                      backgroundColor: AppColors.background,
-                      valueColor: AlwaysStoppedAnimation(densityColor),
-                      minHeight: 8,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ─── View Details Button ───────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context); // Close bottom sheet
-                  Navigator.of(context).push(
-                    AppRouter.fadeScale(
-                      LocationDetailScreen(locationId: location.id),
-                      name: AppRouter.locationDetail,
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.visibility_rounded, size: 18),
-                label: const Text('View Details & Scanning'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
     );
+  }
+
+  static String _statusLabel(String? s) {
+    return switch (s) {
+      'empty' => 'Boş',
+      'low' => 'Az Yoğun',
+      'medium' => 'Orta',
+      'high' => 'Yoğun',
+      'full' => 'Dolu',
+      _ => 'Veri Bekleniyor',
+    };
   }
 }
 
-/// Small stat tile for the bottom sheet grid.
-class _StatTile extends StatelessWidget {
-  final IconData icon;
+// ── Uploader status card ─────────────────────────────────────────────
+
+class _UploaderCard extends StatelessWidget {
+  final ScanUploader uploader;
+  const _UploaderCard({required this.uploader});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (uploader.state) {
+      UploadState.success => AppColors.densityLow,
+      UploadState.error => AppColors.densityHigh,
+      UploadState.uploading => AppColors.accent,
+      UploadState.idle => AppColors.textTertiary,
+    };
+    final label = switch (uploader.state) {
+      UploadState.success => 'Son gönderim başarılı',
+      UploadState.error => 'Son gönderim başarısız',
+      UploadState.uploading => 'Gönderiliyor…',
+      UploadState.idle => 'Henüz gönderim yapılmadı',
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          if (uploader.lastError != null) ...[
+            const SizedBox(height: 6),
+            Text(uploader.lastError!,
+                style: const TextStyle(
+                    color: AppColors.densityHigh, fontSize: 12)),
+          ],
+          if (uploader.lastSyncedAt != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Son senkron: ${_fmt(uploader.lastSyncedAt!)}'
+              '${uploader.lastDeviceCount != null ? ' · ${uploader.lastDeviceCount} cihaz algılandı' : ''}',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _fmt(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+  }
+}
+
+// ── Small stat tile ──────────────────────────────────────────────────
+
+class _StatCard extends StatelessWidget {
   final String label;
   final String value;
+  final IconData icon;
   final Color color;
 
-  const _StatTile({
-    required this.icon,
+  const _StatCard({
     required this.label,
     required this.value,
+    required this.icon,
     required this.color,
   });
 
@@ -465,7 +401,7 @@ class _StatTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border, width: 1),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,12 +410,17 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          ),
         ],
       ),
     );

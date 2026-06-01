@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:bluetooth_occupancy_admin/core/app_colors.dart';
-import 'package:bluetooth_occupancy_admin/models/location_model.dart';
+import 'package:crowdly_scanner/core/app_colors.dart';
+import 'package:crowdly_scanner/models/location_model.dart';
 
 class DensityIndicator extends StatelessWidget {
   final DensityLevel level;

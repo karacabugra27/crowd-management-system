@@ -174,6 +174,118 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _showEditAreaDialog(Map<String, dynamic> area) async {
+    final nameCtrl = TextEditingController(text: area['name'] ?? '');
+    final floorCtrl = TextEditingController(text: area['floor']?.toString() ?? '');
+    final capacityCtrl = TextEditingController(text: area['capacity']?.toString() ?? '');
+    final latCtrl = TextEditingController(text: area['latitude']?.toString() ?? '');
+    final lngCtrl = TextEditingController(text: area['longitude']?.toString() ?? '');
+    String error = '';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text('Alanı Düzenle', style: TextStyle(fontSize: 18)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (error.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(error, style: const TextStyle(color: AppColors.red, fontSize: 13)),
+                  ),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Alan Adı *', hintText: 'Ör: Kütüphane - 1. Kat'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: floorCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Kat', hintText: 'Ör: 1'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: capacityCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Kapasite *', hintText: 'Ör: 200'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: latCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Latitude', hintText: 'Ör: 41.0082'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: lngCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Longitude', hintText: 'Ör: 28.9784'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('İptal', style: TextStyle(color: AppColors.textDim)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (nameCtrl.text.isEmpty || capacityCtrl.text.isEmpty) {
+                  setDialogState(() => error = 'Alan adı ve kapasite zorunludur.');
+                  return;
+                }
+                try {
+                  final payload = <String, dynamic>{
+                    'name': nameCtrl.text,
+                    'capacity': int.parse(capacityCtrl.text),
+                  };
+                  if (floorCtrl.text.isNotEmpty) payload['floor'] = int.parse(floorCtrl.text);
+                  if (latCtrl.text.isNotEmpty) payload['latitude'] = double.parse(latCtrl.text);
+                  if (lngCtrl.text.isNotEmpty) payload['longitude'] = double.parse(lngCtrl.text);
+                  await _areasService.update(area['id'] as int, payload);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  _fetchAll();
+                } catch (e) {
+                  setDialogState(() => error = cleanError(e));
+                }
+              },
+              icon: const Icon(Icons.save, size: 16),
+              label: const Text('Değişiklikleri Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _deleteArea(int id, String name) async {
     final confirmed = await _showDeleteConfirm('alan', name);
     if (confirmed == true) {
@@ -525,6 +637,7 @@ class _AdminPageState extends State<AdminPage> {
           else
             ..._areas.map((a) => _AreaListItem(
                   area: a,
+                  onEdit: () => _showEditAreaDialog(a as Map<String, dynamic>),
                   onToggle: () => _toggleArea(a['id']),
                   onDelete: () => _deleteArea(a['id'], a['name'] ?? ''),
                 )),
@@ -568,11 +681,13 @@ class _AdminPageState extends State<AdminPage> {
 
 class _AreaListItem extends StatelessWidget {
   final dynamic area;
+  final VoidCallback onEdit;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
 
   const _AreaListItem({
     required this.area,
+    required this.onEdit,
     required this.onToggle,
     required this.onDelete,
   });
@@ -647,6 +762,13 @@ class _AreaListItem extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                _IconBtn(
+                  icon: Icons.edit_outlined,
+                  color: AppColors.blue,
+                  onTap: onEdit,
+                  tooltip: 'Düzenle',
+                ),
+                const SizedBox(width: 8),
                 _IconBtn(
                   icon: isActive ? Icons.toggle_on : Icons.toggle_off,
                   color: isActive ? AppColors.green : AppColors.textMuted,

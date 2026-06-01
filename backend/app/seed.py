@@ -2,8 +2,6 @@
 
 Seeds:
   1. A default admin user (configurable via env vars).
-  2. A small set of starter campus areas, so the dashboard isn't empty
-     on first launch.
 
 Run from the project root once the database is reachable:
 
@@ -11,17 +9,17 @@ Run from the project root once the database is reachable:
 
 The script is idempotent — re-running it never duplicates rows. It is safe
 (and intended) to run on every container start, right after migrations.
+
+Areas are managed exclusively through the admin panel.
 """
 import asyncio
 import logging
 import os
-from typing import List
 
 from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.database import AsyncSessionLocal
-from app.models.area import Area
 from app.models.user import User
 
 logging.basicConfig(
@@ -33,15 +31,6 @@ log = logging.getLogger("crowdly.seed")
 # ─── Defaults — override via environment variables ─────────────────
 DEFAULT_ADMIN_EMAIL = os.getenv("SEED_ADMIN_EMAIL", "admin@gmail.com")
 DEFAULT_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "123456789")
-
-STARTER_AREAS: List[dict] = [
-    {"name": "Kütüphane - Ana Salon",       "floor": 1, "capacity": 300, "latitude": 38.3308, "longitude": 38.4357},
-    {"name": "Kütüphane - Sessiz Çalışma",  "floor": 2, "capacity": 80,  "latitude": 38.3310, "longitude": 38.4358},
-    {"name": "Yemekhane",                   "floor": 0, "capacity": 500, "latitude": 38.3315, "longitude": 38.4350},
-    {"name": "Bilgisayar Laboratuvarı",     "floor": 1, "capacity": 40,  "latitude": 38.3295, "longitude": 38.4360},
-    {"name": "Sınıf 101",                   "floor": 1, "capacity": 60,  "latitude": 38.3312, "longitude": 38.4352},
-    {"name": "Sınıf 201",                   "floor": 2, "capacity": 60,  "latitude": 38.3313, "longitude": 38.4351},
-]
 
 
 async def seed_admin() -> None:
@@ -81,24 +70,9 @@ async def seed_admin() -> None:
         await db.commit()
 
 
-async def seed_areas() -> None:
-    """Insert starter areas only when the table is empty."""
-    async with AsyncSessionLocal() as db:
-        count_result = await db.execute(select(Area.id))
-        if count_result.first() is not None:
-            log.info("Alan tablosunda kayıt var, alanlar atlandı.")
-            return
-
-        for payload in STARTER_AREAS:
-            db.add(Area(**payload))
-        await db.commit()
-        log.info("%d başlangıç alanı eklendi.", len(STARTER_AREAS))
-
-
 async def main() -> None:
     log.info("Crowdly seed başlatılıyor…")
     await seed_admin()
-    await seed_areas()
     log.info("✅ Seed tamamlandı.")
 
 
