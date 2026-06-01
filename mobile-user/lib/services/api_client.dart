@@ -10,19 +10,19 @@ import '../core/constants.dart';
 /// Pulls its base URL from [ApiConfig] (runtime-mutable). Stores JWT tokens in
 /// secure storage and auto-refreshes on 401, mirroring the web client.
 class ApiClient {
-  ApiClient({ApiConfig? config}) : _config = config ?? _fallbackConfig;
-
   static final ApiConfig _fallbackConfig = ApiConfig();
-
-  /// Wire the singleton-style fallback so existing call sites that do
-  /// `ApiClient()` keep working after `ApiConfig.load()` runs in main().
-  static void bindDefaultConfig(ApiConfig config) {
-    _instance._config = config;
-  }
 
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
   ApiClient._internal() : _config = _fallbackConfig;
+
+  /// Named constructor for injecting a custom config (e.g. in tests).
+  ApiClient.withConfig(ApiConfig config) : _config = config;
+
+  /// Updates the singleton's config at runtime after [ApiConfig.load()] runs.
+  static void bindDefaultConfig(ApiConfig config) {
+    _instance._config = config;
+  }
 
   ApiConfig _config;
   final _storage = const FlutterSecureStorage();

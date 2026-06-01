@@ -1,0 +1,17 @@
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+ios/Pods/
+android/.gradle/
+android/app/build/
+.idea/
+.vscode/
+.DS_Store
+*.log
+README.md
+Dockerfile
+.dockerignore

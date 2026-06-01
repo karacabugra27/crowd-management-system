@@ -6,9 +6,17 @@
 #     docker compose up --build
 #
 # Then:
-#     - Web:        http://localhost:5173
-#     - Backend:    http://localhost:8000  (docs at /docs)
-#     - Postgres:   localhost:5433
+#     - Web:                  http://localhost:5173
+#     - Mobile (web build):   http://localhost:5174
+#     - Backend:              http://localhost:8000  (docs at /docs)
+#     - Postgres:             localhost:5433
+#
+# Bluetooth tarayıcı APK builder, isteğe bağlıdır (build süresi uzun).
+# Açmak için:
+#
+#     docker compose --profile apk up --build
+#
+# Sonra http://localhost:5175 adresinden APK indirilebilir.
 #
 
 
@@ -72,6 +80,28 @@ services:
       - backend
     ports:
       - "5173:80"
+
+  # Mobile-user (Flutter) — derlenip web olarak yayımlanır. Aynı UI'ı tarayıcıdan
+  # denemek için. nginx, /api ve /ws isteklerini backend'e proxy'ler.
+  mobile-user:
+    build: ./mobile-user
+    container_name: crowdly_mobile_user
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5174:80"
+
+  # Bluetooth tarayıcı (Flutter) — APK üretip statik olarak servis eder.
+  # BLE web'de çalışmadığı için bu image yalnızca APK indirme servisi sunar.
+  # Build süresi uzun (Gradle + Android SDK), bu yüzden opt-in profile altında.
+  mobile-bluetooth-apk:
+    build: ./mobile-bluetooth
+    container_name: crowdly_mobile_bluetooth_apk
+    restart: unless-stopped
+    profiles: ["apk"]
+    ports:
+      - "5175:80"
 
 volumes:
   crowdly_postgres_data:
