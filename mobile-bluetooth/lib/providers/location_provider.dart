@@ -4,6 +4,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import '../models/location_model.dart';
 import '../services/mock_data.dart';
+import '../services/scan_uploader.dart';
 
 /// Discovered device entry for the scanning log.
 class DiscoveredDevice {
@@ -37,9 +38,21 @@ class LocationProvider extends ChangeNotifier {
   StreamSubscription<BluetoothDiscoveryResult>? _classicScanSubscription;
   
   bool _isLoading = true;
+  ScanUploader? _uploader;
 
   List<MonitoringLocation> get locations => List.unmodifiable(_locations);
   bool get isLoading => _isLoading;
+
+  /// Snapshot of all MAC addresses currently in the global cache.
+  /// Used by [ScanUploader] when posting to the backend.
+  List<String> get currentMacAddresses =>
+      _globalDeviceCache.keys.toList(growable: false);
+
+  /// Wire the backend uploader. Provider will start/stop it together with
+  /// scanning state so the caller doesn't have to manage timer lifecycle.
+  void attachUploader(ScanUploader uploader) {
+    _uploader = uploader;
+  }
 
   int get totalDevices =>
       _locations.fold(0, (sum, loc) => sum + loc.currentDeviceCount);
@@ -200,9 +213,12 @@ class LocationProvider extends ChangeNotifier {
           debugPrint("BLE Scan Error: $e");
         }
       }
-      
+
       // 2. Fire up Classic BT discovery loop
       _startClassicDiscoveryLoop();
+
+      // 3. Begin uploading results to the Crowdly backend, if configured.
+      _uploader?.start();
     }
   }
 
@@ -222,6 +238,7 @@ class LocationProvider extends ChangeNotifier {
       } catch (e) {
         debugPrint("Error stopping scan: $e");
       }
+      _uploader?.stop();
     }
   }
 
