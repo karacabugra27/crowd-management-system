@@ -1,4 +1,5 @@
 """FastAPI application entry point."""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+
+class _HealthAccessFilter(logging.Filter):
+    """Drop uvicorn access-log lines for the noisy /health probe."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return "/health" not in msg
+
+
+logging.getLogger("uvicorn.access").addFilter(_HealthAccessFilter())
 
 from app.config import settings
 from app.core.rate_limiter import limiter

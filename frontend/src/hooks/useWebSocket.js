@@ -39,7 +39,13 @@ export default function useWebSocket(areaId = null, onMessage) {
     connect();
     return () => {
       clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        // Strip the reconnect handler so unmount doesn't queue a fresh socket.
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
     };
   }, [connect]);
 
