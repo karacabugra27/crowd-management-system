@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { adminApi, areasApi } from "../api/client";
 import { formatPercent, formatDate, statusLabel } from "../utils/helpers";
 import { translateError } from "../utils/errors";
+import { useToast } from "../contexts/useToast";
 import {
   Users,
   MapPin,
@@ -30,6 +31,7 @@ const TABS = [
 ];
 
 export default function AdminPage() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState("overview");
 
   const [stats, setStats] = useState(null);
@@ -120,18 +122,24 @@ export default function AdminPage() {
       await areasApi.create(payload);
       setShowAreaModal(false);
       setAreaForm({ name: "", floor: "", capacity: "", latitude: "", longitude: "" });
+      toast.success(`"${payload.name}" alanı oluşturuldu.`);
       fetchAll();
     } catch (err) {
-      setFormError(translateError(err, "Alan oluşturulamadı."));
+      const msg = translateError(err, "Alan oluşturulamadı.");
+      setFormError(msg);
+      toast.error(msg);
     }
   };
 
   const handleToggleArea = async (id) => {
     try {
       await areasApi.toggleActive(id);
+      toast.success("Alan durumu güncellendi.");
       fetchAll();
     } catch (err) {
-      setErrorMsg(translateError(err, "Alan durumu değiştirilemedi."));
+      const msg = translateError(err, "Alan durumu değiştirilemedi.");
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   };
 
@@ -139,9 +147,12 @@ export default function AdminPage() {
     try {
       await areasApi.delete(id);
       setDeleteConfirm(null);
+      toast.success("Alan silindi.");
       fetchAll();
     } catch (err) {
-      setErrorMsg(translateError(err, "Alan silinemedi."));
+      const msg = translateError(err, "Alan silinemedi.");
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   };
 
@@ -174,9 +185,12 @@ export default function AdminPage() {
       setShowAreaModal(false);
       setEditingArea(null);
       setAreaForm({ name: "", floor: "", capacity: "", latitude: "", longitude: "" });
+      toast.success(`"${payload.name}" güncellendi.`);
       fetchAll();
     } catch (err) {
-      setFormError(translateError(err, "Alan güncellenemedi."));
+      const msg = translateError(err, "Alan güncellenemedi.");
+      setFormError(msg);
+      toast.error(msg);
     }
   };
 
@@ -189,9 +203,12 @@ export default function AdminPage() {
       const { data } = await adminApi.createScanner(payload);
       setNewApiKey(data.api_key);
       setScannerForm({ name: "", area_id: "" });
+      toast.success(`"${payload.name}" tarayıcısı oluşturuldu. API anahtarını kopyalayın.`);
       fetchAll();
     } catch (err) {
-      setFormError(translateError(err, "Tarayıcı oluşturulamadı."));
+      const msg = translateError(err, "Tarayıcı oluşturulamadı.");
+      setFormError(msg);
+      toast.error(msg);
     }
   };
 
@@ -199,15 +216,19 @@ export default function AdminPage() {
     try {
       await adminApi.deleteScanner(id);
       setDeleteConfirm(null);
+      toast.success("Tarayıcı silindi.");
       fetchAll();
     } catch (err) {
-      setErrorMsg(translateError(err, "Tarayıcı silinemedi."));
+      const msg = translateError(err, "Tarayıcı silinemedi.");
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   };
 
   const copyApiKey = () => {
     navigator.clipboard.writeText(newApiKey);
     setCopied(true);
+    toast.info("API anahtarı panoya kopyalandı.", { duration: 2500 });
     setTimeout(() => setCopied(false), 2000);
   };
 

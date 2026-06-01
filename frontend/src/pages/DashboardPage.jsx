@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { occupancyApi } from "../api/client";
 import useWebSocket from "../hooks/useWebSocket";
 import useCountUp from "../hooks/useCountUp";
+import useWsToast from "../hooks/useWsToast";
 import { DashboardSkeleton } from "../components/Skeleton";
 import {
   statusColor,
@@ -16,13 +18,12 @@ import {
   MapPin,
   TrendingUp,
   Activity,
-  Wifi,
-  WifiOff,
   Clock,
   ChevronRight,
   AlertTriangle,
   X,
 } from "lucide-react";
+import WsStatusPill from "../components/WsStatusPill";
 import { useNavigate } from "react-router-dom";
 
 export default function DashboardPage() {
@@ -100,7 +101,8 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const { connected } = useWebSocket(null, handleWsMessage);
+  const { connected } = useWebSocket(null, handleWsMessage, { throttleMs: 250 });
+  useWsToast(connected);
 
   // Stats
   const totalAreas = liveData.length;
@@ -116,6 +118,7 @@ export default function DashboardPage() {
   const animatedAreas = useCountUp(totalAreas);
   const animatedDevices = useCountUp(totalDevices);
   const animatedAvg = useCountUp(avgOccupancy, { decimals: 1 });
+  const reduceMotion = useReducedMotion();
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -128,17 +131,7 @@ export default function DashboardPage() {
           <h1>Genel Bakış</h1>
           <p className="page-subtitle">Kampüs alanlarının anlık doluluk durumu</p>
         </div>
-        <div className={`ws-status ${connected ? "connected" : "disconnected"}`}>
-          {connected ? (
-            <>
-              <span className="ws-dot" aria-hidden="true" />
-              <Wifi size={16} />
-            </>
-          ) : (
-            <WifiOff size={16} />
-          )}
-          <span>{connected ? "Canlı bağlantı" : "Bağlantı kesildi"}</span>
-        </div>
+        <WsStatusPill connected={connected} />
       </div>
 
       {errorMsg && (
@@ -218,9 +211,15 @@ export default function DashboardPage() {
             aria-live="polite"
             aria-atomic="false"
           >
+            <AnimatePresence initial={false}>
             {liveData.map((area) => (
-              <div
+              <motion.div
                 key={area.area_id}
+                layout={!reduceMotion}
+                initial={reduceMotion ? false : { opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
+                transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
                 className={`area-card${pulsing.has(area.area_id) ? " pulse" : ""}`}
                 onClick={() => navigate(`/analytics?area=${area.area_id}`)}
                 id={`area-card-${area.area_id}`}
@@ -277,8 +276,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
         )}
       </section>

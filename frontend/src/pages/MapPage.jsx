@@ -9,11 +9,13 @@ import {
   statusBg,
   formatPercent,
 } from "../utils/helpers";
-import { Wifi, WifiOff, Layers, Navigation, AlertTriangle, X } from "lucide-react";
+import { Layers, Navigation, AlertTriangle, X } from "lucide-react";
 import { translateError } from "../utils/errors";
+import WsStatusPill from "../components/WsStatusPill";
+import useWsToast from "../hooks/useWsToast";
 
 /* ─── Custom marker icon factory ────────────────────────── */
-function createIcon(status, pct) {
+function createIcon(status, pct, { selected = false, pulsing = false } = {}) {
   const color = statusColor(status);
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
@@ -28,12 +30,15 @@ function createIcon(status, pct) {
       <text x="24" y="25" text-anchor="middle" font-size="12" font-weight="700"
             fill="${color}" font-family="Inter,sans-serif">${Math.round(pct)}%</text>
     </svg>`;
+  const cls = ["custom-marker"];
+  if (selected) cls.push("selected");
+  if (pulsing) cls.push("pulse");
   return L.divIcon({
     html: svg,
     iconSize: [48, 56],
     iconAnchor: [24, 56],
     popupAnchor: [0, -50],
-    className: "custom-marker",
+    className: cls.join(" "),
   });
 }
 
@@ -57,6 +62,8 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [selectedArea, setSelectedArea] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [pulsing, setPulsing] = useState(() => new Set());
+  const pulseTimers = useRef(new Map());
 
   const fetchData = useCallback(async () => {
     try {
@@ -93,9 +100,35 @@ export default function MapPage() {
       }
       return prev;
     });
+
+    setPulsing((prev) => {
+      const next = new Set(prev);
+      next.add(msg.area_id);
+      return next;
+    });
+    const existing = pulseTimers.current.get(msg.area_id);
+    if (existing) clearTimeout(existing);
+    const handle = setTimeout(() => {
+      setPulsing((prev) => {
+        const next = new Set(prev);
+        next.delete(msg.area_id);
+        return next;
+      });
+      pulseTimers.current.delete(msg.area_id);
+    }, 1000);
+    pulseTimers.current.set(msg.area_id, handle);
   }, []);
 
-  const { connected } = useWebSocket(null, handleWsMessage);
+  useEffect(() => {
+    const timers = pulseTimers.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, []);
+
+  const { connected } = useWebSocket(null, handleWsMessage, { throttleMs: 250 });
+  useWsToast(connected);
 
   const validPoints = heatmap.filter(
     (h) => h.latitude != null && h.longitude != null
@@ -120,10 +153,7 @@ export default function MapPage() {
           <h1>Kampüs Haritası</h1>
           <p className="page-subtitle">Alanların konum bazlı anlık doluluk görünümü</p>
         </div>
-        <div className={`ws-status ${connected ? "connected" : "disconnected"}`}>
-          {connected ? <Wifi size={16} /> : <WifiOff size={16} />}
-          <span>{connected ? "Canlı bağlantı" : "Bağlantı kesildi"}</span>
-        </div>
+        <WsStatusPill connected={connected} />
       </div>
 
       {errorMsg && (
@@ -207,7 +237,13 @@ export default function MapPage() {
               <Marker
                 key={point.area_id}
                 position={[point.latitude, point.longitude]}
-                icon={createIcon(point.status, point.occupancy_pct)}
+                icon={createIcon(point.status, point.occupancy_pct, {
+                  selected: selectedArea === point.area_id,
+                  pulsing: pulsing.has(point.area_id),
+                })}
+                eventHandlers={{
+                  click: () => setSelectedArea(point.area_id),
+                }}
               >
                 <Popup className="custom-popup">
                   <div className="popup-content">

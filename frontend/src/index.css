@@ -47,7 +47,7 @@ input,select,textarea{font-family:inherit;outline:none}
 .page-subtitle{color:var(--text-muted);font-size:.88rem;margin-top:4px}
 .header-icon{color:var(--purple)}
 
-.ws-status{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:600}
+.ws-status{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:600;transition:background-color .6s var(--easing-smooth),color .6s var(--easing-smooth)}
 .ws-status.connected{background:rgba(52,211,153,.1);color:var(--green)}
 .ws-status.disconnected{background:rgba(248,113,113,.1);color:var(--red)}
 
@@ -211,9 +211,14 @@ input,select,textarea{font-family:inherit;outline:none}
 .legend-item{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-dim);margin-bottom:4px}
 .legend-dot{width:10px;height:10px;border-radius:50%}
 .map-no-geo{display:flex;align-items:center;justify-content:center;gap:12px;padding:24px;color:var(--text-muted);background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-top:16px;text-align:center}
-.custom-marker{background:none!important;border:none!important}
-.custom-popup .leaflet-popup-content-wrapper{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;color:var(--text)}
-.custom-popup .leaflet-popup-tip{background:var(--bg-card)}
+.custom-marker{background:none!important;border:none!important;transition:filter .3s ease}
+.custom-marker.pulse{animation:marker-pulse 1s ease-out}
+.custom-marker.selected{filter:drop-shadow(0 0 6px rgba(129,140,248,.65));animation:marker-ring 2s ease-in-out infinite}
+@keyframes marker-pulse{0%{transform:scale(1)}35%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes marker-ring{0%,100%{filter:drop-shadow(0 0 0 rgba(129,140,248,0))}50%{filter:drop-shadow(0 0 12px rgba(129,140,248,.85))}}
+.custom-popup .leaflet-popup-content-wrapper{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;color:var(--text);animation:popup-in .22s cubic-bezier(.4,0,.2,1)}
+.custom-popup .leaflet-popup-tip{background:var(--bg-card);animation:popup-in .22s cubic-bezier(.4,0,.2,1)}
+@keyframes popup-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .popup-content h4{font-size:.95rem;font-weight:600;margin-bottom:8px}
 .popup-stats{display:flex;align-items:center;gap:10px}
 .popup-badge{padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600}
@@ -654,6 +659,63 @@ input,select,textarea{font-family:inherit;outline:none}
 
 /* ─── aria-live wrapper (no visual change) ──────── */
 .live-region { display: contents; }
+
+/* ─── Toast stack (Faz 2) ───────────────────────── */
+.toast-stack {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: calc(100vw - 40px);
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  min-width: 280px;
+  max-width: 380px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: .88rem;
+}
+.toast-success { border-left-color: var(--green); }
+.toast-error   { border-left-color: var(--red); }
+.toast-info    { border-left-color: var(--purple); }
+.toast-success .toast-icon { color: var(--green); }
+.toast-error .toast-icon   { color: var(--red); }
+.toast-info .toast-icon    { color: var(--purple); }
+.toast-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.35;
+}
+.toast-body strong { font-size: .9rem; font-weight: 600; }
+.toast-close {
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.toast-close:hover { background: rgba(255,255,255,.06); color: var(--text); }
+:root[data-theme="light"] .toast-close:hover { background: rgba(15,23,42,.06); }
+@media (max-width: 480px) {
+  .toast-stack { left: 16px; right: 16px; bottom: 16px; max-width: none; }
+  .toast { min-width: 0; max-width: none; }
+}
 
 /* ─── Light mode targeted adjustments ───────────── */
 :root[data-theme="light"] .ring-bg { stroke: rgba(15,23,42,.10); }

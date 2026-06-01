@@ -1,13 +1,18 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import PublicLayout from "./components/PublicLayout";
 import AdminLayout from "./components/AdminLayout";
 import DashboardPage from "./pages/DashboardPage";
-import MapPage from "./pages/MapPage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import LoginPage from "./pages/LoginPage";
-import AdminPage from "./pages/AdminPage";
+import { DashboardSkeleton, AnalyticsSkeleton } from "./components/Skeleton";
+
+// Lazy-loaded routes: split heavy deps (Leaflet, Recharts, admin tooling) out
+// of the initial bundle so the public Dashboard boots faster.
+const MapPage = lazy(() => import("./pages/MapPage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
 
 function PageLoader() {
   return (
@@ -66,7 +71,9 @@ function AppRoutes() {
             path="/map"
             element={
               <PageTransition>
-                <MapPage />
+                <Suspense fallback={<PageLoader />}>
+                  <MapPage />
+                </Suspense>
               </PageTransition>
             }
           />
@@ -74,7 +81,9 @@ function AppRoutes() {
             path="/analytics"
             element={
               <PageTransition>
-                <AnalyticsPage />
+                <Suspense fallback={<AnalyticsSkeleton />}>
+                  <AnalyticsPage />
+                </Suspense>
               </PageTransition>
             }
           />
@@ -86,7 +95,9 @@ function AppRoutes() {
           element={
             <AdminPublicRoute>
               <PageTransition>
-                <LoginPage />
+                <Suspense fallback={<PageLoader />}>
+                  <LoginPage />
+                </Suspense>
               </PageTransition>
             </AdminPublicRoute>
           }
@@ -105,7 +116,9 @@ function AppRoutes() {
             index
             element={
               <PageTransition>
-                <AdminPage />
+                <Suspense fallback={<DashboardSkeleton />}>
+                  <AdminPage />
+                </Suspense>
               </PageTransition>
             }
           />
