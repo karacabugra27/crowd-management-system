@@ -4,78 +4,125 @@ Bluetooth tabanlı tarayıcılardan gelen MAC verilerini kullanarak kampüs alan
 
 ## Bileşenler
 
-| Bileşen              | Klasör              | Teknoloji                      | Docker servisi          |
-| -------------------- | ------------------- | ------------------------------ | ----------------------- |
-| Web arayüzü          | `frontend/`         | React 19 + Vite + nginx        | `frontend`              |
-| Backend API          | `backend/`          | FastAPI + PostgreSQL + Alembic | `backend`               |
-| Mobil kullanıcı app  | `mobile-user/`      | Flutter (web build edilir)     | `mobile-user`           |
-| Mobil tarayıcı app   | `mobile-bluetooth/` | Flutter (Android APK)          | `mobile-bluetooth-apk`  |
+| Bileşen             | Klasör              | Teknoloji                      | Docker servisi         |
+| ------------------- | ------------------- | ------------------------------ | ---------------------- |
+| Web arayüzü         | `frontend/`         | React 19 + Vite + nginx        | `frontend`             |
+| Backend API         | `backend/`          | FastAPI + PostgreSQL + Alembic | `backend`              |
+| Mobil kullanıcı app | `mobile-user/`      | Flutter (web build)            | `mobile-user`          |
+| Mobil tarayıcı app  | `mobile-bluetooth/` | Flutter (Android APK)          | `mobile-bluetooth-apk` |
 
-## Tek Komutla Çalıştırma
+---
 
-Gereksinim: Docker Desktop (veya docker engine + docker compose v2).
+## Docker ile Çalıştırma
+
+### 1. Sistemi Başlat
 
 ```bash
-cp .env.example .env       # gerekirse düzenle
 docker compose up --build
 ```
 
-Bu komut **Postgres + Backend + Web frontend + Mobil web build**'i ayağa kaldırır.
+İlk açılışta backend otomatik olarak şemayı oluşturur ve varsayılan admin hesabını oluşturur.
 
-Hazır olduğunda:
+| Adres                            | Servis                          |
+| -------------------------------- | ------------------------------- |
+| http://localhost:5173            | Web arayüzü                     |
+| http://localhost:5174            | Mobil kullanıcı app (tarayıcı)  |
+| http://localhost:8000/docs       | Backend API (Swagger)           |
+| localhost:5433                   | PostgreSQL                      |
 
-- **Web arayüzü**         → http://localhost:5173
-- **Mobil kullanıcı app** → http://localhost:5174 (Flutter web build'i)
-- **Backend API**         → http://localhost:8000 (Swagger: `/docs`)
-- **Postgres**            → `localhost:5433`
+### 2. Admin Paneline Giriş Yap
 
-İlk açılışta otomatik olarak çalışan backend adımları:
+http://localhost:5173 → sağ üst **Giriş** → admin hesabıyla oturum aç.
 
-1. `alembic upgrade head` — şema oluşturma
-2. `python -m app.seed` — varsayılan admin + başlangıç alanları
-3. `uvicorn` — API başlatılır
+| Alan    | Varsayılan Değer  |
+| ------- | ----------------- |
+| E-posta | `admin@gmail.com` |
+| Şifre   | `123456789`       |
 
-### Bluetooth tarayıcı APK (opsiyonel)
+> `.env` dosyasında `SEED_ADMIN_EMAIL` ve `SEED_ADMIN_PASSWORD` ile değiştirilebilir.
 
-`mobile-bluetooth` gerçek Bluetooth donanımına erişir, bu yüzden tarayıcıda çalıştırılamaz — Android cihaza kurulmak üzere APK olarak derlenir. İlk build uzun sürer (~10 dk, Gradle + Android SDK indirir), bu yüzden opt-in profile altında:
+### 3. Alan Oluştur
+
+Admin paneli → **Alanlar** sekmesi → **Yeni Alan**:
+
+- **Alan Adı** — örn. `Kütüphane - 1. Kat`
+- **Kapasite** — maksimum kişi/cihaz sayısı
+- **Kat**, **Enlem/Boylam** — opsiyonel
+
+### 4. Tarayıcı Oluştur ve API Anahtarı Al
+
+Admin paneli → **Tarayıcılar** sekmesi → **Yeni Tarayıcı**:
+
+- Tarayıcıya bir ad ver, oluşturduğun alanı seç.
+- Gösterilen **API anahtarını kopyala** — yalnızca bir kez gösterilir.
+
+### 5. Bluetooth Tarayıcı APK'yı Kur (Android Cihaz)
 
 ```bash
 docker compose --profile apk up --build
 ```
 
-Sonra: http://localhost:5175 → APK indirme sayfası açılır. Android cihazda APK'yı kurun, açıp ⚙️ **Sunucu Ayarları**'ndan backend URL, API anahtarı ve alan ID girin. (API anahtarı için web panelinden bir Scanner oluşturun.)
+Build tamamlanınca http://localhost:5175 adresinden APK indir, Android cihaza kur.
 
-## Varsayılan Admin
+Uygulamayı açıp ⚙️ **Sunucu Ayarları**'na gir:
 
-| Alan      | Değer              |
-| --------- | ------------------ |
-| E-posta   | `admin@gmail.com`  |
-| Şifre     | `123456789`        |
+| Alan              | Değer                                          |
+| ----------------- | ---------------------------------------------- |
+| Backend URL       | `http://<bilgisayarın-ip-adresi>:8000`         |
+| API Anahtarı      | Adım 4'te kopyalanan anahtar                   |
+| Tarama Alanı      | Listeden alanı seç (backend'den otomatik çeker)|
+| Gönderme Aralığı  | Örn. `15` (saniye)                             |
+| Otomatik Yükleme  | Açık                                           |
 
-`.env` üzerinden `SEED_ADMIN_EMAIL` ve `SEED_ADMIN_PASSWORD` ile değiştirilebilir. Seed her container start'ta çalışır; mevcut admin'in şifresi `.env`'deki değere senkronlanır (volume silmeden şifre değişikliği için pratik).
+> Emülatörden test ediyorsan URL `http://10.0.2.2:8000` olmalı.
 
-Giriş için: http://localhost:5173/admin/login
+### 6. Taramayı Başlat
+
+Ayarları kaydet → Ana ekranda **Taramayı Başlat** — Bluetooth cihazları algılanır ve doluluk backend'e iletilir.
+
+Web arayüzü ve mobil kullanıcı uygulaması doluluk verilerini gerçek zamanlı gösterir.
+
+---
 
 ## Mimari
 
 ```
-  Tarayıcı APK (mobile-bluetooth)            Kullanıcı (web veya mobile-user)
-            │                                            │
-            │ POST /api/scanner/data                     │ GET /api/occupancy/*
-            │ (X-API-Key header)                         │ WS /ws/occupancy
-            ▼                                            ▼
-   ┌────────────────────────────────────────────────────────────┐
-   │                    FastAPI (backend)                       │
-   │  · /api/auth     · /api/areas                              │
-   │  · /api/scanner  · /api/occupancy                          │
-   │  · /api/admin    · /ws/occupancy                           │
-   └────────────────────────────────────────────────────────────┘
+  Tarayıcı APK (mobile-bluetooth)          Kullanıcı (web / mobile-user)
+            │                                          │
+            │ POST /api/scanner/data                   │ GET /api/occupancy/*
+            │ (X-API-Key)                              │ WS /ws/occupancy
+            ▼                                          ▼
+   ┌──────────────────────────────────────────────────────────┐
+   │                   FastAPI (backend)                      │
+   │  /api/auth  · /api/areas  · /api/scanner                 │
+   │  /api/occupancy  · /api/admin  · /ws/occupancy           │
+   └──────────────────────────────────────────────────────────┘
                               │
                               ▼
                          PostgreSQL
 ```
 
-## Lokal Geliştirme (Docker olmadan)
+---
+
+## Faydalı Komutlar
+
+```bash
+# Logları izle
+docker compose logs -f backend
+
+# Sadece backend + veritabanı (frontend olmadan)
+docker compose up postgres backend
+
+# Veritabanını ve tüm verileri sıfırla
+docker compose down -v && docker compose up --build
+
+# Sadece APK build
+docker compose --profile apk up mobile-bluetooth-apk --build
+```
+
+---
+
+## Lokal Geliştirme (Docker Olmadan)
 
 ### Backend
 
@@ -83,35 +130,24 @@ Giriş için: http://localhost:5173/admin/login
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env       # DATABASE_URL'i lokal postgres'a göre düzenle
+cp .env.example .env        # DATABASE_URL'i düzenle
 alembic upgrade head
 python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-### Web frontend
+### Web Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev        # http://localhost:5173, /api ve /ws proxy'lenir
+npm run dev   # http://localhost:5173
 ```
 
-### Flutter (mobile-user veya mobile-bluetooth)
+### Flutter
 
 ```bash
-cd mobile-user           # ya da mobile-bluetooth
+cd mobile-user        # veya mobile-bluetooth
 flutter pub get
-flutter run              # cihaz/emülatör seçilir
-```
-
-mobile-user için ayar ekranından, mobile-bluetooth için ⚙️ Sunucu Ayarları'ndan backend URL'sini ayarlayın.
-
-## Faydalı Komutlar
-
-```bash
-docker compose logs -f backend                 # backend loglarını izle
-docker compose exec backend python -m app.seed # seed'i yeniden çalıştır
-docker compose down -v                         # konteynerleri + DB volume'u sıfırla
-docker compose --profile apk up mobile-bluetooth-apk --build   # sadece APK build
+flutter run
 ```
