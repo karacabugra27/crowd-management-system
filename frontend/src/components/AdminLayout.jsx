@@ -11,6 +11,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
@@ -26,6 +27,7 @@ export default function AdminLayout() {
 
   return (
     <div className="app-layout">
+      <a href="#main-content" className="skip-link">Ana içeriğe geç</a>
       <header className="mobile-header">
         <button
           className="menu-btn"
@@ -38,15 +40,19 @@ export default function AdminLayout() {
           <Shield size={20} className="brand-icon" />
           <span>Crowdly · Yönetim</span>
         </div>
+        <div style={{ marginLeft: "auto" }}>
+          <ThemeToggle />
+        </div>
       </header>
 
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-brand">
           <Activity size={28} className="brand-icon" />
-          <div>
+          <div style={{ flex: 1 }}>
             <h1>Crowdly</h1>
             <span className="brand-sub">Yönetim Paneli</span>
           </div>
+          <ThemeToggle />
         </div>
 
         <nav className="sidebar-nav">
@@ -99,7 +105,7 @@ export default function AdminLayout() {
         />
       )}
 
-      <main className="main-content">
+      <main className="main-content" id="main-content">
         <Outlet />
       </main>
     </div>

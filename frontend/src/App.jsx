@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import PublicLayout from "./components/PublicLayout";
 import AdminLayout from "./components/AdminLayout";
@@ -31,40 +32,88 @@ function AdminPublicRoute({ children }) {
   return children;
 }
 
-function AppRoutes() {
+function PageTransition({ children }) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) return <>{children}</>;
   return (
-    <Routes>
-      {/* Public user routes */}
-      <Route element={<PublicLayout />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="/map" element={<MapPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-      </Route>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
-      {/* Admin login (no layout) */}
-      <Route
-        path="/admin/login"
-        element={
-          <AdminPublicRoute>
-            <LoginPage />
-          </AdminPublicRoute>
-        }
-      />
+function AppRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <Routes location={location} key={location.pathname}>
+        {/* Public user routes */}
+        <Route element={<PublicLayout />}>
+          <Route
+            index
+            element={
+              <PageTransition>
+                <DashboardPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/map"
+            element={
+              <PageTransition>
+                <MapPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <PageTransition>
+                <AnalyticsPage />
+              </PageTransition>
+            }
+          />
+        </Route>
 
-      {/* Admin protected routes */}
-      <Route
-        path="/admin"
-        element={
-          <AdminProtectedRoute>
-            <AdminLayout />
-          </AdminProtectedRoute>
-        }
-      >
-        <Route index element={<AdminPage />} />
-      </Route>
+        {/* Admin login (no layout) */}
+        <Route
+          path="/admin/login"
+          element={
+            <AdminPublicRoute>
+              <PageTransition>
+                <LoginPage />
+              </PageTransition>
+            </AdminPublicRoute>
+          }
+        />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Admin protected routes */}
+        <Route
+          path="/admin"
+          element={
+            <AdminProtectedRoute>
+              <AdminLayout />
+            </AdminProtectedRoute>
+          }
+        >
+          <Route
+            index
+            element={
+              <PageTransition>
+                <AdminPage />
+              </PageTransition>
+            }
+          />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AnimatePresence>
   );
 }
 

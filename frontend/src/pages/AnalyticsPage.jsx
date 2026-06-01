@@ -20,6 +20,7 @@ import {
 } from "recharts";
 import { Clock, TrendingUp, BarChart3, Filter, AlertTriangle, X } from "lucide-react";
 import { translateError } from "../utils/errors";
+import { AnalyticsSkeleton } from "../components/Skeleton";
 
 export default function AnalyticsPage() {
   const [searchParams] = useSearchParams();
@@ -181,10 +182,7 @@ export default function AnalyticsPage() {
       )}
 
       {loading ? (
-        <div className="page-loader">
-          <div className="loader-spinner" />
-          <p>Geçmiş veriler yükleniyor…</p>
-        </div>
+        <AnalyticsSkeleton />
       ) : (
         <>
           {/* ─── Occupancy Chart ─────────────────────── */}

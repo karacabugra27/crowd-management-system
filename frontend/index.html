@@ -6,6 +6,17 @@
     <meta name="description" content="Crowdly — Akıllı Kampüs Kalabalık Yönetim Sistemi. Kampüs alanlarının gerçek zamanlı doluluk takibi." />
     <title>Crowdly — Kampüs Kalabalık Yönetimi</title>
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <script>
+      // FOUC-free theme init — runs before React mount
+      (function () {
+        try {
+          var stored = localStorage.getItem('crowdly-theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch (e) { /* localStorage unavailable */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

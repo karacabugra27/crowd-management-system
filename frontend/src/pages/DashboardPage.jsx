@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { occupancyApi } from "../api/client";
 import useWebSocket from "../hooks/useWebSocket";
+import useCountUp from "../hooks/useCountUp";
+import { DashboardSkeleton } from "../components/Skeleton";
 import {
   statusColor,
   statusLabel,
@@ -28,6 +30,8 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const [pulsing, setPulsing] = useState(() => new Set());
+  const pulseTimers = useRef(new Map());
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
@@ -69,6 +73,31 @@ export default function DashboardPage() {
       }
       return [...prev, updated];
     });
+
+    setPulsing((prev) => {
+      const next = new Set(prev);
+      next.add(msg.area_id);
+      return next;
+    });
+    const prevTimer = pulseTimers.current.get(msg.area_id);
+    if (prevTimer) clearTimeout(prevTimer);
+    const t = setTimeout(() => {
+      setPulsing((prev) => {
+        const next = new Set(prev);
+        next.delete(msg.area_id);
+        return next;
+      });
+      pulseTimers.current.delete(msg.area_id);
+    }, 1000);
+    pulseTimers.current.set(msg.area_id, t);
+  }, []);
+
+  useEffect(() => {
+    const timers = pulseTimers.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
   }, []);
 
   const { connected } = useWebSocket(null, handleWsMessage);
@@ -84,13 +113,12 @@ export default function DashboardPage() {
     ? liveData.reduce((max, a) => (a.occupancy_pct > max.occupancy_pct ? a : max))
     : null;
 
+  const animatedAreas = useCountUp(totalAreas);
+  const animatedDevices = useCountUp(totalDevices);
+  const animatedAvg = useCountUp(avgOccupancy, { decimals: 1 });
+
   if (loading) {
-    return (
-      <div className="page-loader">
-        <div className="loader-spinner" />
-        <p>Veriler yükleniyor…</p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -101,7 +129,14 @@ export default function DashboardPage() {
           <p className="page-subtitle">Kampüs alanlarının anlık doluluk durumu</p>
         </div>
         <div className={`ws-status ${connected ? "connected" : "disconnected"}`}>
-          {connected ? <Wifi size={16} /> : <WifiOff size={16} />}
+          {connected ? (
+            <>
+              <span className="ws-dot" aria-hidden="true" />
+              <Wifi size={16} />
+            </>
+          ) : (
+            <WifiOff size={16} />
+          )}
           <span>{connected ? "Canlı bağlantı" : "Bağlantı kesildi"}</span>
         </div>
       </div>
@@ -128,7 +163,7 @@ export default function DashboardPage() {
           </div>
           <div className="stat-content">
             <span className="stat-label">Toplam Alan</span>
-            <span className="stat-value">{totalAreas}</span>
+            <span className="stat-value">{animatedAreas}</span>
           </div>
         </div>
         <div className="stat-card stat-blue">
@@ -137,7 +172,7 @@ export default function DashboardPage() {
           </div>
           <div className="stat-content">
             <span className="stat-label">Algılanan Cihaz</span>
-            <span className="stat-value">{totalDevices}</span>
+            <span className="stat-value">{animatedDevices}</span>
           </div>
         </div>
         <div className="stat-card stat-amber">
@@ -146,7 +181,7 @@ export default function DashboardPage() {
           </div>
           <div className="stat-content">
             <span className="stat-label">Ort. Doluluk</span>
-            <span className="stat-value">{formatPercent(avgOccupancy)}</span>
+            <span className="stat-value">{formatPercent(animatedAvg)}</span>
           </div>
         </div>
         <div className="stat-card stat-rose">
@@ -178,11 +213,15 @@ export default function DashboardPage() {
             <p>Yönetim panelinden alan ekleyerek başlayın.</p>
           </div>
         ) : (
-          <div className="area-cards-grid">
+          <div
+            className="area-cards-grid"
+            aria-live="polite"
+            aria-atomic="false"
+          >
             {liveData.map((area) => (
               <div
                 key={area.area_id}
-                className="area-card"
+                className={`area-card${pulsing.has(area.area_id) ? " pulse" : ""}`}
                 onClick={() => navigate(`/analytics?area=${area.area_id}`)}
                 id={`area-card-${area.area_id}`}
               >

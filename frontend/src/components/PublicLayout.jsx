@@ -1,6 +1,7 @@
 import { Outlet, NavLink, Link } from "react-router-dom";
 import { LayoutDashboard, Map, BarChart3, Activity, Shield, Menu, X } from "lucide-react";
 import { useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 export default function PublicLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -13,6 +14,7 @@ export default function PublicLayout() {
 
   return (
     <div className="public-layout">
+      <a href="#main-content" className="skip-link">Ana içeriğe geç</a>
       <header className="public-header">
         <div className="public-header-inner">
           <Link to="/" className="public-brand" onClick={() => setMenuOpen(false)}>
@@ -48,17 +50,20 @@ export default function PublicLayout() {
             </Link>
           </nav>
 
-          <button
-            className="public-menu-btn"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Menüyü aç"
-          >
-            {menuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ThemeToggle />
+            <button
+              className="public-menu-btn"
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Menüyü aç"
+            >
+              {menuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="public-main">
+      <main className="public-main" id="main-content">
         <Outlet />
       </main>
 

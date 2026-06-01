@@ -35,6 +35,7 @@ export default defineConfig(({ mode }) => {
             }
             if (id.includes('recharts') || id.includes('d3-')) return 'charts'
             if (id.includes('leaflet')) return 'map'
+            if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) return 'motion'
             return undefined
           },
         },
