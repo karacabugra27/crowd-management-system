@@ -84,6 +84,25 @@ Web arayüzü ve mobil kullanıcı uygulaması doluluk verilerini gerçek zamanl
 
 ---
 
+## Mobil Veriden Test (ngrok ile Tünel)
+
+Telefon bilgisayarla **aynı Wi-Fi'da değilse** (örn. mobil veri) LAN IP'si erişilemez ve uygulamada "alan bulunamadı" hatası çıkar. Backend'i geçici olarak public bir URL'ye taşımak için [ngrok](https://ngrok.com/download) tüneli aç:
+
+```bash
+# Backend ayakta olmalı (docker compose up) — sonra başka bir terminalde:
+ngrok http 8000
+```
+
+ngrok ekranda `https://xxxx-xx-xx-xx-xx.ngrok-free.app` benzeri bir URL gösterir. Telefonda:
+
+1. APK'yı aç → ⚙️ **Sunucu Ayarları**
+2. **Backend URL** alanına ngrok'un verdiği `https://...ngrok-free.app` adresini yapıştır
+3. Kaydet — alanlar listesi mobil veriden de gelir
+
+> ngrok'u kapatınca URL geçersiz olur; tekrar açtığında yeni URL'yi ayarlardan güncelle. Kalıcı çözüm için backend'i public bir sunucuya deploy et veya Tailscale gibi bir VPN kullan.
+
+---
+
 ## Mimari
 
 ```
